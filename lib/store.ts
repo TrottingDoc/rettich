@@ -54,7 +54,8 @@ export function deleteRecipe(id: string) {
 // Profile
 
 export function getProfile(): Profile {
-  return load(KEYS.profile, DEFAULT_PROFILE)
+  const stored = load<Partial<Profile>>(KEYS.profile, {})
+  return { ...DEFAULT_PROFILE, ...stored }
 }
 
 export function saveProfile(profile: Profile) {
@@ -63,8 +64,15 @@ export function saveProfile(profile: Profile) {
 
 // Daily suggestion
 
-function todayStr(): string {
+export function todayStr(): string {
   return new Date().toISOString().split('T')[0]
+}
+
+/** Kalenderdatum für „morgen“ (lokal wie ISO-Datum). */
+export function tomorrowStr(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
 }
 
 export function getTodaySuggestion(): DailySuggestion | null {
@@ -72,25 +80,45 @@ export function getTodaySuggestion(): DailySuggestion | null {
   return suggestions.find((s) => s.date === todayStr()) ?? null
 }
 
-export function createTodaySuggestion(): DailySuggestion {
-  const existing = getTodaySuggestion()
-  if (existing) return existing
+export function getSuggestionByDate(isoDate: string): DailySuggestion | null {
+  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
+  const row = suggestions.find((s) => s.date === isoDate)
+  if (!row) return null
+  const recipe = getRecipe(row.recipeId)
+  return recipe ? { ...row, recipe } : null
+}
+
+/**
+ * Liefert den Vorschlag für ein Datum; legt ihn bei Bedarf neu an (gleiche Logik wie bisher für „heute“).
+ */
+export function getOrCreateSuggestionForDate(targetDate: string): DailySuggestion | null {
+  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
+  const existing = suggestions.find((s) => s.date === targetDate)
+  if (existing) {
+    const recipe = getRecipe(existing.recipeId)
+    if (!recipe) return null
+    return { ...existing, recipe }
+  }
 
   const profile = getProfile()
   const recipes = getRecipes().filter((r) => r.isActive && r.timeMinutes <= profile.maxTimeMinutes)
+  if (!recipes.length) return null
 
-  // Prefer recipes not seen recently
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
   const recentIds = new Set(suggestions.slice(-7).map((s) => s.recipeId))
-  const fresh = recipes.filter((r) => !recentIds.has(r.id))
-  const pool = fresh.length > 0 ? fresh : recipes
+  let pool = recipes.filter((r) => !recentIds.has(r.id))
+  if (!pool.length) pool = recipes
 
-  const recipe = pool[Math.floor(Math.random() * pool.length)]
-  if (!recipe) return { id: crypto.randomUUID(), date: todayStr(), recipeId: '', status: 'pending' }
+  const todayRow = suggestions.find((s) => s.date === todayStr())
+  if (todayRow && pool.length > 1) {
+    const avoidToday = pool.filter((r) => r.id !== todayRow.recipeId)
+    if (avoidToday.length) pool = avoidToday
+  }
+
+  const recipe = pool[Math.floor(Math.random() * pool.length)]!
 
   const suggestion: DailySuggestion = {
     id: crypto.randomUUID(),
-    date: todayStr(),
+    date: targetDate,
     recipeId: recipe.id,
     recipe,
     status: 'pending',
@@ -98,6 +126,19 @@ export function createTodaySuggestion(): DailySuggestion {
 
   save(KEYS.suggestions, [...suggestions, suggestion])
   return suggestion
+}
+
+export function createTodaySuggestion(): DailySuggestion {
+  const existing = getTodaySuggestion()
+  if (existing) {
+    const recipe = getRecipe(existing.recipeId)
+    return recipe ? { ...existing, recipe } : existing
+  }
+
+  const created = getOrCreateSuggestionForDate(todayStr())
+  if (created) return created
+
+  return { id: crypto.randomUUID(), date: todayStr(), recipeId: '', status: 'pending' }
 }
 
 export function updateSuggestionStatus(

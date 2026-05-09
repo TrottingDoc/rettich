@@ -3,7 +3,7 @@ type RadishProps = {
   className?: string
 }
 
-export function Radish({ size = 24, className }: RadishProps) {
+export function Radish({ size = 48, className }: RadishProps) {
   return (
     <svg
       width={size}

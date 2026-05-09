@@ -29,7 +29,7 @@ export default function VerlaufPage() {
   return (
     <div className="px-4 pt-8 pb-6 flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-stone-900">Verlauf</h1>
+        <h1 className="text-2xl font-bold text-stone-900">Bisher</h1>
         <p className="text-stone-500 mt-1">Was du bisher gekocht hast.</p>
       </div>
 

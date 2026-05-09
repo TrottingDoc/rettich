@@ -187,4 +187,6 @@ export const DEFAULT_PROFILE: Profile = {
   dislikes: [],
   equipment: ['Herd', 'Toaster'],
   notificationHour: 10,
+  wantsShoppingList: false,
+  shopDayAhead: false,
 }

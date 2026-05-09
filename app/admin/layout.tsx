@@ -5,13 +5,13 @@ import { Plus, List } from 'lucide-react'
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+      <header className="bg-[#faf7f0] border-b border-stone-200/70 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-[3px]">
           <Image
             src="/image_rettich.png"
             alt="Rettich"
-            width={36}
-            height={36}
+            width={72}
+            height={72}
             priority
             className="object-contain"
           />

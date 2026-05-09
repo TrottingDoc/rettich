@@ -73,4 +73,8 @@ export type Profile = {
   dislikes: string[]
   equipment: string[]
   notificationHour: number
+  /** Einkaufsliste für das Tagesgericht anzeigen */
+  wantsShoppingList: boolean
+  /** Vorschlag & Liste für morgen einen Tag früher einsehbar */
+  shopDayAhead: boolean
 }

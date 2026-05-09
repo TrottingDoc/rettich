@@ -10,6 +10,9 @@ import {
   getAlternativeSuggestion,
   getSimplerSuggestion,
   getRecipe,
+  getProfile,
+  getOrCreateSuggestionForDate,
+  tomorrowStr,
 } from '@/lib/store'
 import type { DailySuggestion, Recipe } from '@/lib/types'
 
@@ -44,12 +47,18 @@ function ComplexityBadge({ recipe }: { recipe: Recipe }) {
 
 export default function TodayPage() {
   const [suggestion, setSuggestion] = useState<DailySuggestion | null>(null)
+  const [tomorrowPeek, setTomorrowPeek] = useState<DailySuggestion | null>(null)
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const s = createTodaySuggestion()
     setSuggestion(s)
+    if (getProfile().shopDayAhead) {
+      setTomorrowPeek(getOrCreateSuggestionForDate(tomorrowStr()))
+    } else {
+      setTomorrowPeek(null)
+    }
     setLoading(false)
   }, [])
 
@@ -115,8 +124,27 @@ export default function TodayPage() {
         <h1 className="text-2xl font-bold text-stone-900 mt-1">Dein heutiger Vorschlag</h1>
       </div>
 
-      {/* Recipe card */}
-      <div className="px-4 flex-1">
+      {tomorrowPeek?.recipe && (
+        <div className="px-4 pb-2">
+          <div className="rounded-xl border border-orange-200/80 bg-orange-50/90 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-800/90">
+              Schon für morgen
+            </p>
+            <p className="text-base font-semibold text-stone-900 mt-1 leading-snug">
+              {tomorrowPeek.recipe.title}
+            </p>
+            <Link
+              href="/profil"
+              className="text-sm font-medium text-orange-700 mt-2 inline-block hover:text-orange-800"
+            >
+              Einkaufsliste & Vorlieben
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Recipe card + actions */}
+      <div className="px-4 flex flex-col gap-3 flex-1 pb-6">
         <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
           {/* Recipe info */}
           <div className="p-6 flex flex-col gap-4">
@@ -167,24 +195,24 @@ export default function TodayPage() {
             </Link>
           </div>
         </div>
-      </div>
 
-      {/* Rejection buttons */}
-      <div className="px-4 py-6 flex flex-col gap-3">
-        <button
-          onClick={requestSimpler}
-          className="flex items-center justify-center gap-2 w-full border border-stone-300 text-stone-700 font-medium text-base py-3.5 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
-        >
-          <RefreshCw size={18} />
-          Etwas Einfacheres
-        </button>
-        <button
-          onClick={() => setShowRejectDialog(true)}
-          className="flex items-center justify-center gap-2 w-full text-stone-400 text-base py-2 hover:text-stone-600 transition-colors"
-        >
-          <X size={16} />
-          Heute nicht
-        </button>
+        {/* Rejection buttons */}
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={requestSimpler}
+            className="flex items-center justify-center gap-2 w-full border border-stone-300 text-stone-700 font-medium text-base py-3.5 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
+          >
+            <RefreshCw size={18} />
+            Etwas Einfacheres
+          </button>
+          <button
+            onClick={() => setShowRejectDialog(true)}
+            className="flex items-center justify-center gap-2 w-full text-stone-400 text-base py-2 hover:text-stone-600 transition-colors"
+          >
+            <X size={16} />
+            Heute nicht
+          </button>
+        </div>
       </div>
 
       {/* Reject dialog */}

@@ -1,38 +1,63 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat } from 'lucide-react'
 import { getRecipe, saveFeedback, updateSuggestionStatus, getTodaySuggestion } from '@/lib/store'
 import type { Recipe, Step } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-function TimerDisplay({ seconds, onDone }: { seconds: number; onDone: () => void }) {
-  const [remaining, setRemaining] = useState(seconds)
-  const [running, setRunning] = useState(false)
+function truncateTimerLabel(text: string, maxLen = 140): string {
+  const t = text.trim()
+  if (t.length <= maxLen) return t
+  return `${t.slice(0, maxLen - 1)}…`
+}
 
-  useEffect(() => {
-    if (!running) return
-    if (remaining <= 0) { onDone(); return }
-    const t = setTimeout(() => setRemaining((r) => r - 1), 1000)
-    return () => clearTimeout(t)
-  }, [running, remaining, onDone])
+type CookTimerState = {
+  remaining: number
+  running: boolean
+  initialSeconds: number
+  /** Schritt-Text des Rezepts, für den diese Zeit gedacht ist */
+  label: string
+}
 
+function TimerBar({
+  remaining,
+  running,
+  initialSeconds,
+  label,
+  onToggleRunning,
+}: {
+  remaining: number
+  running: boolean
+  initialSeconds: number
+  label: string
+  onToggleRunning: () => void
+}) {
   const mins = Math.floor(remaining / 60)
   const secs = remaining % 60
 
   return (
-    <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
-      <Timer size={20} className="text-orange-600 shrink-0" />
-      <span className="text-lg font-bold text-orange-700 tabular-nums">
-        {mins}:{String(secs).padStart(2, '0')}
-      </span>
-      <button
-        onClick={() => setRunning((r) => !r)}
-        className="ml-auto text-sm font-semibold text-orange-700 border border-orange-300 rounded-lg px-3 py-1 hover:bg-orange-100 transition-colors"
-      >
-        {running ? 'Pause' : remaining === seconds ? 'Starten' : 'Weiter'}
-      </button>
+    <div className="flex flex-col gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+      <div className="flex items-start gap-3">
+        <Timer size={20} className="text-orange-600 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-800/85">Timer für</p>
+          <p className="text-sm text-orange-950 leading-snug mt-0.5 line-clamp-3">{label}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 border-t border-orange-200/80 pt-3">
+        <span className="text-lg font-bold text-orange-700 tabular-nums">
+          {mins}:{String(secs).padStart(2, '0')}
+        </span>
+        <button
+          type="button"
+          onClick={onToggleRunning}
+          className="ml-auto text-sm font-semibold text-orange-700 border border-orange-300 rounded-lg px-3 py-1 hover:bg-orange-100 transition-colors"
+        >
+          {running ? 'Pause' : remaining === initialSeconds ? 'Starten' : 'Weiter'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -129,11 +154,63 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
   const [stepIndex, setStepIndex] = useState(0)
   const [done, setDone] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [cookTimer, setCookTimer] = useState<CookTimerState | null>(null)
 
   useEffect(() => {
     const r = getRecipe(id)
     if (r) setRecipe(r)
   }, [id])
+
+  /** Keep one timer across steps: nur zurücksetzen, wenn die aktuelle Schritt-Dauer den Timer idle definiert oder abgelaufen ist – nicht beim Weiter-Tap während der läuft. */
+  useEffect(() => {
+    if (!recipe) return
+    const currentStep = recipe.steps[stepIndex]
+    const dur =
+      currentStep.durationSeconds != null && currentStep.durationSeconds > 0
+        ? currentStep.durationSeconds
+        : null
+
+    setCookTimer((prev) => {
+      if (prev?.running && prev.remaining > 0) return prev
+      if (prev && prev.remaining > 0 && prev.remaining < prev.initialSeconds) return prev
+      if (dur) {
+        const idleAtFull =
+          !!prev && !prev.running && prev.remaining === prev.initialSeconds && prev.remaining > 0
+        const completed = !!prev && prev.remaining === 0 && !prev.running
+        const noPrev = !prev
+        if (noPrev || completed || idleAtFull) {
+          return {
+            remaining: dur,
+            initialSeconds: dur,
+            running: false,
+            label: truncateTimerLabel(currentStep.text),
+          }
+        }
+      }
+      if (prev && prev.remaining > 0) return prev
+      if (prev && prev.remaining === 0) return prev
+      return null
+    })
+  }, [recipe, stepIndex])
+
+  useEffect(() => {
+    if (!cookTimer?.running || cookTimer.remaining <= 0) return
+    const t = setTimeout(() => {
+      setCookTimer((c) => {
+        if (!c?.running) return c
+        const next = c.remaining - 1
+        if (next <= 0) {
+          return { ...c, remaining: 0, running: false }
+        }
+        return { ...c, remaining: next }
+      })
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [cookTimer?.running, cookTimer?.remaining])
+
+  const toggleCookTimer = useCallback(() => {
+    setCookTimer((c) => (c ? { ...c, running: !c.running } : c))
+  }, [])
 
   function submitFeedback(wouldCookAgain: boolean, tooHard: boolean, tooLong: boolean) {
     const suggestion = getTodaySuggestion()
@@ -234,11 +311,13 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
             <p className="text-xl leading-relaxed text-stone-800 font-medium pt-1">{step.text}</p>
           </div>
 
-          {step.durationSeconds && (
-            <TimerDisplay
-              key={stepIndex}
-              seconds={step.durationSeconds}
-              onDone={() => {}}
+          {cookTimer && (
+            <TimerBar
+              remaining={cookTimer.remaining}
+              running={cookTimer.running}
+              initialSeconds={cookTimer.initialSeconds}
+              label={cookTimer.label}
+              onToggleRunning={toggleCookTimer}
             />
           )}
 
@@ -300,6 +379,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
             if (stepIndex < totalSteps - 1) {
               setStepIndex((i) => i + 1)
             } else {
+              setCookTimer(null)
               setDone(true)
             }
           }}
