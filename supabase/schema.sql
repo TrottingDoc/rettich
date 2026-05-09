@@ -68,12 +68,14 @@ create table if not exists alternative_surveys (
       'fewer_utensils',
       'dislike',
       'no_mood',
-      'prefer_not_say'
+      'prefer_not_say',
+      'specific_craving'
     )
   ),
   recipe_time_minutes int not null,
   recipe_ingredient_count int not null,
-  recipe_pan_count int not null
+  recipe_pan_count int not null,
+  craving_choice_ids text[] default '{}'
 );
 
 -- Abgeleitete Grenzwerte für Empfehlungen (pro Nutzer/in eher eine Zeile in profile erweitern; hier als eigene Tabelle skizziert)

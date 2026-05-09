@@ -47,7 +47,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           href="/profil"
           className="flex-1 flex flex-col items-center gap-1 py-3 text-stone-500 hover:text-orange-600 transition-colors min-w-0"
         >
-          <Heart size={22} className="shrink-0 text-red-500 fill-red-500" aria-hidden />
+          <Heart size={22} className="shrink-0" aria-hidden />
           <span className="text-[11px] sm:text-xs text-center leading-tight">Vorlieben</span>
         </Link>
         <Link

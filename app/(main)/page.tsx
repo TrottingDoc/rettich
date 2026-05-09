@@ -3,9 +3,23 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Clock, Flame, ChefHat, RefreshCw, X, ChevronRight, ClipboardList } from 'lucide-react'
+import {
+  Clock,
+  Flame,
+  ChefHat,
+  RefreshCw,
+  X,
+  ChevronRight,
+  ClipboardList,
+  ChevronLeft,
+} from 'lucide-react'
 import { cn, formatIngredientLine } from '@/lib/utils'
-import { createTodaySuggestion, applySomethingElse } from '@/lib/store'
+import {
+  createTodaySuggestion,
+  applySomethingElse,
+  type ApplySomethingElseOptions,
+} from '@/lib/store'
+import { POPULAR_CRAVING_CHOICES } from '@/lib/craving-options'
 import type { AlternativeSurveyReason, DailySuggestion, Recipe } from '@/lib/types'
 
 const CHOPPING_LABEL: Record<string, string> = {
@@ -40,6 +54,10 @@ function ComplexityBadge({ recipe }: { recipe: Recipe }) {
 export default function TodayPage() {
   const [suggestion, setSuggestion] = useState<DailySuggestion | null>(null)
   const [showAlternativeSurvey, setShowAlternativeSurvey] = useState(false)
+  const [alternativeSurveyStep, setAlternativeSurveyStep] = useState<'reasons' | 'cravings'>(
+    'reasons',
+  )
+  const [selectedCravingIds, setSelectedCravingIds] = useState<string[]>([])
   const [alternativeSurveyHint, setAlternativeSurveyHint] = useState<string | null>(null)
   const [showIngredientsModal, setShowIngredientsModal] = useState(false)
   const [shoppingListFeedback, setShoppingListFeedback] = useState<'idle' | 'saved'>('idle')
@@ -67,11 +85,23 @@ export default function TodayPage() {
     }, 1400)
   }
 
-  function confirmSomethingElse(reason: AlternativeSurveyReason) {
+  function openAlternativeSurvey() {
+    setAlternativeSurveyHint(null)
+    setAlternativeSurveyStep('reasons')
+    setSelectedCravingIds([])
+    setShowAlternativeSurvey(true)
+  }
+
+  function confirmSomethingElse(
+    reason: AlternativeSurveyReason,
+    options?: ApplySomethingElseOptions,
+  ) {
     if (!suggestion?.recipe) return
     setAlternativeSurveyHint(null)
-    const next = applySomethingElse(suggestion, suggestion.recipe, reason)
+    const next = applySomethingElse(suggestion, suggestion.recipe, reason, options)
     setShowAlternativeSurvey(false)
+    setAlternativeSurveyStep('reasons')
+    setSelectedCravingIds([])
     if (next) {
       setSuggestion(next)
     } else {
@@ -79,6 +109,17 @@ export default function TodayPage() {
         'Gerade passt kein anderes Rezept zu deinen Grenzen. Versuche es später oder lockere die Vorlieben.',
       )
     }
+  }
+
+  function toggleCravingChoice(id: string) {
+    setSelectedCravingIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  function confirmSpecificCraving() {
+    if (!selectedCravingIds.length) return
+    confirmSomethingElse('specific_craving', { cravingChoiceIds: selectedCravingIds })
   }
 
   if (loading) {
@@ -181,10 +222,7 @@ export default function TodayPage() {
         <div className="flex flex-col gap-3">
           <button
             type="button"
-            onClick={() => {
-              setAlternativeSurveyHint(null)
-              setShowAlternativeSurvey(true)
-            }}
+            onClick={openAlternativeSurvey}
             className="flex items-center justify-center gap-2 w-full border border-stone-300 text-stone-700 font-medium text-base py-3.5 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
           >
             <RefreshCw size={18} />
@@ -273,47 +311,128 @@ export default function TodayPage() {
       {showAlternativeSurvey && (
         <div
           className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
-          onClick={() => setShowAlternativeSurvey(false)}
+          onClick={() => {
+            setShowAlternativeSurvey(false)
+            setAlternativeSurveyStep('reasons')
+            setSelectedCravingIds([])
+          }}
         >
           <div
             className="bg-white w-full max-w-md sm:rounded-2xl rounded-t-2xl p-6 flex flex-col gap-3 shadow-xl max-h-[min(88dvh,36rem)] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-stone-900">Warum etwas anderes?</h3>
-                <p className="text-stone-500 text-sm mt-1">
-                  Deine Antwort passt die nächsten Vorschläge an (Zeit, Zutaten, Geschirr).
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAlternativeSurvey(false)}
-                className="p-2 rounded-full hover:bg-stone-100 text-stone-500 shrink-0"
-                aria-label="Schließen"
-              >
-                <X size={22} />
-              </button>
-            </div>
-            {(
-              [
-                { reason: 'faster' as const, label: 'Soll schneller gehen' },
-                { reason: 'fewer_ingredients' as const, label: 'Weniger Lebensmittel verwenden' },
-                { reason: 'fewer_utensils' as const, label: 'Weniger Utensilien verwenden' },
-                { reason: 'dislike' as const, label: 'Mag ich nicht' },
-                { reason: 'no_mood' as const, label: 'Heute keine Lust drauf' },
-                { reason: 'prefer_not_say' as const, label: 'Sag ich nicht' },
-              ] satisfies { reason: AlternativeSurveyReason; label: string }[]
-            ).map(({ reason, label }) => (
-              <button
-                key={reason}
-                type="button"
-                onClick={() => confirmSomethingElse(reason)}
-                className="w-full text-left text-base font-medium text-stone-700 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 active:scale-[0.98] transition-all"
-              >
-                {label}
-              </button>
-            ))}
+            {alternativeSurveyStep === 'reasons' ? (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-stone-900">Warum etwas anderes?</h3>
+                    <p className="text-stone-500 text-sm mt-1">
+                      Deine Antwort passt die nächsten Vorschläge an (Zeit, Zutaten, Geschirr).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAlternativeSurvey(false)
+                      setAlternativeSurveyStep('reasons')
+                      setSelectedCravingIds([])
+                    }}
+                    className="p-2 rounded-full hover:bg-stone-100 text-stone-500 shrink-0"
+                    aria-label="Schließen"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+                {(
+                  [
+                    { reason: 'faster' as const, label: 'Soll schneller gehen' },
+                    { reason: 'fewer_ingredients' as const, label: 'Weniger Lebensmittel verwenden' },
+                    { reason: 'fewer_utensils' as const, label: 'Weniger Utensilien verwenden' },
+                    { reason: 'specific_craving' as const, label: 'Habe Lust auf was Bestimmtes' },
+                    { reason: 'dislike' as const, label: 'Mag ich nicht' },
+                    { reason: 'no_mood' as const, label: 'Heute keine Lust drauf' },
+                    { reason: 'prefer_not_say' as const, label: 'Sag ich nicht' },
+                  ] satisfies { reason: AlternativeSurveyReason; label: string }[]
+                ).map(({ reason, label }) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() =>
+                      reason === 'specific_craving'
+                        ? setAlternativeSurveyStep('cravings')
+                        : confirmSomethingElse(reason)
+                    }
+                    className="w-full text-left text-base font-medium text-stone-700 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 active:scale-[0.98] transition-all"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAlternativeSurveyStep('reasons')}
+                    className="flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800 -ml-1 py-1"
+                  >
+                    <ChevronLeft size={18} />
+                    Zurück
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAlternativeSurvey(false)
+                      setAlternativeSurveyStep('reasons')
+                      setSelectedCravingIds([])
+                    }}
+                    className="p-2 rounded-full hover:bg-stone-100 text-stone-500 shrink-0"
+                    aria-label="Schließen"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-stone-900">Worauf hast du Lust?</h3>
+                  <p className="text-stone-500 text-sm mt-1">
+                    Wähle eine oder mehrere Zutaten – wir schlagen ein passendes Rezept vor.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {POPULAR_CRAVING_CHOICES.map((c) => {
+                    const on = selectedCravingIds.includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleCravingChoice(c.id)}
+                        className={cn(
+                          'text-sm font-medium rounded-full px-3.5 py-2 border transition-all',
+                          on
+                            ? 'bg-orange-600 text-white border-orange-600'
+                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100',
+                        )}
+                      >
+                        {c.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  type="button"
+                  disabled={selectedCravingIds.length === 0}
+                  onClick={confirmSpecificCraving}
+                  className={cn(
+                    'w-full font-semibold text-base py-3.5 rounded-xl transition-all',
+                    selectedCravingIds.length === 0
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                      : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-[0.98]',
+                  )}
+                >
+                  Passendes Rezept vorschlagen
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

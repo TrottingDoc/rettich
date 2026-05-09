@@ -90,11 +90,7 @@ export default function ProfilPage() {
   return (
     <div className="px-4 pt-8 pb-6 flex flex-col gap-6">
       <div className="flex items-start gap-3">
-        <Heart
-          size={28}
-          className="text-red-500 shrink-0 mt-1 fill-red-500"
-          aria-hidden
-        />
+        <Heart size={28} className="text-orange-600 shrink-0 mt-1" aria-hidden />
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-stone-900">Vorlieben</h1>
           <p className="text-stone-500 mt-1">Einmal ausfüllen, für immer passende Vorschläge.</p>

@@ -84,6 +84,7 @@ export type AlternativeSurveyReason =
   | 'dislike'
   | 'no_mood'
   | 'prefer_not_say'
+  | 'specific_craving'
 
 /** Aus Umfrage + Rezeptmetriken – für Auswertung & nächste Empfehlung */
 export type AlternativeSurveyEntry = {
@@ -95,6 +96,8 @@ export type AlternativeSurveyEntry = {
   recipeTimeMinutes: number
   recipeIngredientCount: number
   recipePanCount: number
+  /** Nur bei reason === specific_craving – IDs aus POPULAR_CRAVING_CHOICES */
+  cravingChoiceIds?: string[]
 }
 
 /**

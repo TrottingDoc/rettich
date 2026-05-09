@@ -10,6 +10,7 @@ import type {
   RecommendationSignals,
 } from './types'
 import { MOCK_RECIPES, DEFAULT_PROFILE } from './mock-data'
+import { scoreRecipeCravingMatch } from './craving-options'
 
 const KEYS = {
   recipes: 'rettich_recipes',
@@ -186,11 +187,40 @@ export function deriveRecommendationSignalsAfterReason(
       }
       break
     }
+    case 'specific_craving':
+      break
     default:
       break
   }
 
   return signals
+}
+
+/** Bevorzugt Rezepte, deren Zutaten zu den gewählten „Lüsten“ passen; sonst ein beliebiges passendes Ersatzrezept. */
+function pickRecipeForSpecificCraving(
+  excludeRecipeId: string,
+  signals: RecommendationSignals,
+  cravingChoiceIds: string[],
+): Recipe | null {
+  const exclude = new Set([excludeRecipeId])
+  for (const relax of RELAXATION_STEPS) {
+    const matched = getRecipes().filter((r) => recipeMatchesRelax(r, exclude, relax, signals))
+    const scored = matched
+      .map((r) => ({ r, score: scoreRecipeCravingMatch(r, cravingChoiceIds) }))
+      .filter(({ score }) => score > 0)
+    if (scored.length) {
+      const best = Math.max(...scored.map((x) => x.score))
+      const top = scored.filter((x) => x.score === best).map((x) => x.r)
+      return top[Math.floor(Math.random() * top.length)]!
+    }
+  }
+  const pool = pickRecipesMatchingSignals(exclude, signals)
+  if (!pool.length) return null
+  return pool[Math.floor(Math.random() * pool.length)]!
+}
+
+export type ApplySomethingElseOptions = {
+  cravingChoiceIds?: string[]
 }
 
 function recipeMatchesRelax(
@@ -248,16 +278,31 @@ export function pickRecipeMatchingSignals(excludeRecipeId: string): Recipe | nul
 
 /**
  * Nach Umfrage: erst prüfen, ob ein Ersatz existiert; dann Umfrage + Signale persistieren.
+ * Bei `specific_craving` sind `cravingChoiceIds` (mind. eine ID) nötig.
  */
 export function applySomethingElse(
   suggestion: DailySuggestion,
   recipe: Recipe,
   reason: AlternativeSurveyReason,
+  options?: ApplySomethingElseOptions,
 ): DailySuggestion | null {
+  const cravingIds =
+    reason === 'specific_craving' ? (options?.cravingChoiceIds?.filter(Boolean) ?? []) : []
+  if (reason === 'specific_craving' && cravingIds.length === 0) return null
+
   const prevSignals = getRecommendationSignals()
   const nextSignals = deriveRecommendationSignalsAfterReason(prevSignals, recipe, reason)
-  const pool = pickRecipesMatchingSignals(new Set([recipe.id]), nextSignals)
-  if (!pool.length) return null
+
+  let nextRecipe: Recipe | null = null
+  if (reason === 'specific_craving') {
+    nextRecipe = pickRecipeForSpecificCraving(recipe.id, nextSignals, cravingIds)
+  } else {
+    const pool = pickRecipesMatchingSignals(new Set([recipe.id]), nextSignals)
+    if (!pool.length) return null
+    nextRecipe = pool[Math.floor(Math.random() * pool.length)]!
+  }
+
+  if (!nextRecipe) return null
 
   const entry: AlternativeSurveyEntry = {
     id: crypto.randomUUID(),
@@ -268,11 +313,10 @@ export function applySomethingElse(
     recipeTimeMinutes: recipe.timeMinutes,
     recipeIngredientCount: recipe.ingredientCount,
     recipePanCount: recipe.panCount,
+    ...(reason === 'specific_craving' && cravingIds.length ? { cravingChoiceIds: cravingIds } : {}),
   }
   save(KEYS.alternativeSurveys, [...getAlternativeSurveyEntries(), entry])
   saveRecommendationSignals(nextSignals)
-
-  const nextRecipe = pool[Math.floor(Math.random() * pool.length)]!
 
   const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
   const idx = suggestions.findIndex((s) => s.id === suggestion.id)
