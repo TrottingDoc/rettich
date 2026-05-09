@@ -2,19 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Clock, Flame, ChefHat, RefreshCw, X, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import {
-  createTodaySuggestion,
-  updateSuggestionStatus,
-  getAlternativeSuggestion,
-  getSimplerSuggestion,
-  getRecipe,
-  getProfile,
-  getOrCreateSuggestionForDate,
-  tomorrowStr,
-} from '@/lib/store'
-import type { DailySuggestion, Recipe } from '@/lib/types'
+import Image from 'next/image'
+import { Clock, Flame, ChefHat, RefreshCw, X, ChevronRight, ClipboardList } from 'lucide-react'
+import { cn, formatIngredientLine } from '@/lib/utils'
+import { createTodaySuggestion, applySomethingElse } from '@/lib/store'
+import type { AlternativeSurveyReason, DailySuggestion, Recipe } from '@/lib/types'
 
 const CHOPPING_LABEL: Record<string, string> = {
   none: 'Kein Schneiden',
@@ -47,46 +39,51 @@ function ComplexityBadge({ recipe }: { recipe: Recipe }) {
 
 export default function TodayPage() {
   const [suggestion, setSuggestion] = useState<DailySuggestion | null>(null)
-  const [tomorrowPeek, setTomorrowPeek] = useState<DailySuggestion | null>(null)
-  const [showRejectDialog, setShowRejectDialog] = useState(false)
+  const [showAlternativeSurvey, setShowAlternativeSurvey] = useState(false)
+  const [alternativeSurveyHint, setAlternativeSurveyHint] = useState<string | null>(null)
+  const [showIngredientsModal, setShowIngredientsModal] = useState(false)
+  const [shoppingListFeedback, setShoppingListFeedback] = useState<'idle' | 'saved'>('idle')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const s = createTodaySuggestion()
     setSuggestion(s)
-    if (getProfile().shopDayAhead) {
-      setTomorrowPeek(getOrCreateSuggestionForDate(tomorrowStr()))
-    } else {
-      setTomorrowPeek(null)
-    }
     setLoading(false)
   }, [])
 
-  function reject(reason?: string) {
-    if (!suggestion) return
-    updateSuggestionStatus(suggestion.id, 'rejected', reason)
-    // pick an alternative
-    const alt = getAlternativeSuggestion(suggestion.recipeId)
-    if (alt) {
-      setSuggestion({ ...suggestion, recipeId: alt.id, recipe: alt, status: 'pending' })
-    } else {
-      setSuggestion({ ...suggestion, status: 'rejected' })
+  async function pinShoppingListToPreferences() {
+    if (!recipe) return
+    const lines = recipe.ingredients.map(formatIngredientLine)
+    const text = `${recipe.title}\n\n${lines.map((l) => `• ${l}`).join('\n')}`
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      /* Clipboard kann z. B. ohne Berechtigung fehlschlagen */
     }
-    setShowRejectDialog(false)
+    setShoppingListFeedback('saved')
+    window.setTimeout(() => {
+      setShowIngredientsModal(false)
+      setShoppingListFeedback('idle')
+    }, 1400)
   }
 
-  function requestSimpler() {
+  function confirmSomethingElse(reason: AlternativeSurveyReason) {
     if (!suggestion?.recipe) return
-    const simpler = getSimplerSuggestion(suggestion.recipe)
-    if (simpler) {
-      updateSuggestionStatus(suggestion.id, 'rejected', 'zu_kompliziert')
-      setSuggestion({ ...suggestion, recipeId: simpler.id, recipe: simpler, status: 'pending' })
+    setAlternativeSurveyHint(null)
+    const next = applySomethingElse(suggestion, suggestion.recipe, reason)
+    setShowAlternativeSurvey(false)
+    if (next) {
+      setSuggestion(next)
+    } else {
+      setAlternativeSurveyHint(
+        'Gerade passt kein anderes Rezept zu deinen Grenzen. Versuche es später oder lockere die Vorlieben.',
+      )
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0 py-16">
         <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -96,7 +93,7 @@ export default function TodayPage() {
 
   if (!recipe) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0 px-6 py-16 text-center gap-4">
         <ChefHat size={48} className="text-stone-300" />
         <p className="text-xl font-semibold text-stone-700">Keine Rezepte vorhanden</p>
         <p className="text-stone-500">Bitte füge zuerst Rezepte im Admin-Bereich hinzu.</p>
@@ -106,7 +103,7 @@ export default function TodayPage() {
 
   if (suggestion?.status === 'rejected' && !recipe) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0 px-6 py-16 text-center gap-4">
         <span className="text-5xl">😴</span>
         <p className="text-xl font-semibold text-stone-700">Kein Vorschlag für heute</p>
         <p className="text-stone-500">Morgen gibt es wieder etwas Leckeres!</p>
@@ -115,7 +112,7 @@ export default function TodayPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="px-6 pt-8 pb-4">
         <p className="text-sm text-stone-500 font-medium uppercase tracking-wide">
@@ -123,25 +120,6 @@ export default function TodayPage() {
         </p>
         <h1 className="text-2xl font-bold text-stone-900 mt-1">Dein heutiger Vorschlag</h1>
       </div>
-
-      {tomorrowPeek?.recipe && (
-        <div className="px-4 pb-2">
-          <div className="rounded-xl border border-orange-200/80 bg-orange-50/90 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-800/90">
-              Schon für morgen
-            </p>
-            <p className="text-base font-semibold text-stone-900 mt-1 leading-snug">
-              {tomorrowPeek.recipe.title}
-            </p>
-            <Link
-              href="/profil"
-              className="text-sm font-medium text-orange-700 mt-2 inline-block hover:text-orange-800"
-            >
-              Einkaufsliste & Vorlieben
-            </Link>
-          </div>
-        </div>
-      )}
 
       {/* Recipe card + actions */}
       <div className="px-4 flex flex-col gap-3 flex-1 pb-6">
@@ -167,24 +145,20 @@ export default function TodayPage() {
 
             <ComplexityBadge recipe={recipe} />
 
-            {/* Ingredients preview */}
-            <div>
-              <p className="text-sm font-semibold text-stone-700 mb-2">Was du brauchst:</p>
-              <ul className="space-y-1">
-                {recipe.ingredients.map((ing, i) => (
-                  <li key={i} className="flex items-center gap-2 text-stone-600 text-base">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                    <span>
-                      {ing.amount} {ing.unit && `${ing.unit} `}{ing.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-200/80">
+              <Image
+                src={recipe.imageUrl?.trim() ? recipe.imageUrl.trim() : '/image_rettich.png'}
+                alt={recipe.title}
+                fill
+                className="object-cover"
+                sizes="(max-width: 448px) 100vw, 400px"
+                priority
+              />
             </div>
           </div>
 
           {/* CTA */}
-          <div className="px-6 pb-6">
+          <div className="px-6 pb-6 flex flex-col">
             <Link
               href={`/kochen/${recipe.id}`}
               className="flex items-center justify-center gap-2 w-full bg-orange-600 text-white font-semibold text-lg py-4 rounded-xl hover:bg-orange-700 active:scale-95 transition-all"
@@ -193,57 +167,153 @@ export default function TodayPage() {
               Jetzt kochen
               <ChevronRight size={20} />
             </Link>
+            <button
+              type="button"
+              onClick={() => setShowIngredientsModal(true)}
+              className="mt-3 text-sm font-medium text-orange-700 hover:text-orange-800 text-center py-1 underline underline-offset-2 decoration-orange-700/50 hover:decoration-orange-800"
+            >
+              Zeig mir die benötigten Lebensmittel
+            </button>
           </div>
         </div>
 
         {/* Rejection buttons */}
         <div className="flex flex-col gap-3">
           <button
-            onClick={requestSimpler}
+            type="button"
+            onClick={() => {
+              setAlternativeSurveyHint(null)
+              setShowAlternativeSurvey(true)
+            }}
             className="flex items-center justify-center gap-2 w-full border border-stone-300 text-stone-700 font-medium text-base py-3.5 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
           >
             <RefreshCw size={18} />
-            Etwas Einfacheres
+            Etwas anderes
           </button>
-          <button
-            onClick={() => setShowRejectDialog(true)}
-            className="flex items-center justify-center gap-2 w-full text-stone-400 text-base py-2 hover:text-stone-600 transition-colors"
-          >
-            <X size={16} />
-            Heute nicht
-          </button>
+          {alternativeSurveyHint && (
+            <p className="text-sm text-amber-800 text-center px-1">{alternativeSurveyHint}</p>
+          )}
         </div>
       </div>
 
-      {/* Reject dialog */}
-      {showRejectDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50" onClick={() => setShowRejectDialog(false)}>
+      {/* Einkaufsliste Pop-up */}
+      {showIngredientsModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+          onClick={() => {
+            setShowIngredientsModal(false)
+            setShoppingListFeedback('idle')
+          }}
+        >
           <div
-            className="bg-white w-full rounded-t-2xl p-6 flex flex-col gap-3"
+            className="bg-white w-full max-w-md sm:rounded-2xl rounded-t-2xl p-6 flex flex-col gap-4 max-h-[min(88dvh,32rem)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-stone-900">Warum nicht?</h3>
-            <p className="text-stone-500 text-sm">Deine Antwort hilft mir, bessere Vorschläge zu machen.</p>
-            {[
-              { reason: 'keine_zutaten', label: '🛒 Zutaten fehlen' },
-              { reason: 'zu_muede', label: '😴 Heute zu müde' },
-              { reason: 'kein_hunger', label: '🙅 Kein Hunger darauf' },
-              { reason: 'schon_gekocht', label: '✅ Das hatte ich kürzlich schon' },
-            ].map(({ reason, label }) => (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-stone-900 leading-snug">Benötigte Lebensmittel</h3>
+                <p className="text-sm text-stone-500 mt-1 line-clamp-2">{recipe.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIngredientsModal(false)
+                  setShoppingListFeedback('idle')
+                }}
+                className="p-2 rounded-full hover:bg-stone-100 text-stone-500 shrink-0"
+                aria-label="Schließen"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <ul className="overflow-y-auto flex-1 min-h-0 space-y-2.5 border border-stone-200 rounded-xl px-4 py-3 bg-stone-50/80">
+              {recipe.ingredients.map((ing, i) => (
+                <li key={i} className="flex items-start gap-3 text-stone-800 text-base leading-snug">
+                  <span className="mt-2 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                  <span>{formatIngredientLine(ing)}</span>
+                </li>
+              ))}
+            </ul>
+            {shoppingListFeedback === 'saved' && (
+              <p className="text-sm text-green-700 font-medium">
+                Liste in die Zwischenablage kopiert – unter „Einkaufen“ siehst du sie auch.
+              </p>
+            )}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => void pinShoppingListToPreferences()}
+                disabled={shoppingListFeedback === 'saved'}
+                className={cn(
+                  'flex items-center justify-center gap-2 w-full font-semibold text-base py-3.5 rounded-xl transition-all',
+                  shoppingListFeedback === 'saved'
+                    ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                    : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-[0.98]',
+                )}
+              >
+                <ClipboardList size={20} />
+                Auf meine Einkaufsliste setzen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIngredientsModal(false)
+                  setShoppingListFeedback('idle')
+                }}
+                className="w-full text-stone-600 font-medium text-base py-3 rounded-xl border border-stone-200 hover:bg-stone-50 active:scale-[0.98] transition-all"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Umfrage „Etwas anderes“ */}
+      {showAlternativeSurvey && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+          onClick={() => setShowAlternativeSurvey(false)}
+        >
+          <div
+            className="bg-white w-full max-w-md sm:rounded-2xl rounded-t-2xl p-6 flex flex-col gap-3 shadow-xl max-h-[min(88dvh,36rem)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-stone-900">Warum etwas anderes?</h3>
+                <p className="text-stone-500 text-sm mt-1">
+                  Deine Antwort passt die nächsten Vorschläge an (Zeit, Zutaten, Geschirr).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAlternativeSurvey(false)}
+                className="p-2 rounded-full hover:bg-stone-100 text-stone-500 shrink-0"
+                aria-label="Schließen"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            {(
+              [
+                { reason: 'faster' as const, label: 'Soll schneller gehen' },
+                { reason: 'fewer_ingredients' as const, label: 'Weniger Lebensmittel verwenden' },
+                { reason: 'fewer_utensils' as const, label: 'Weniger Utensilien verwenden' },
+                { reason: 'dislike' as const, label: 'Mag ich nicht' },
+                { reason: 'no_mood' as const, label: 'Heute keine Lust drauf' },
+                { reason: 'prefer_not_say' as const, label: 'Sag ich nicht' },
+              ] satisfies { reason: AlternativeSurveyReason; label: string }[]
+            ).map(({ reason, label }) => (
               <button
                 key={reason}
-                onClick={() => reject(reason)}
-                className="w-full text-left text-base font-medium text-stone-700 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 active:scale-95 transition-all"
+                type="button"
+                onClick={() => confirmSomethingElse(reason)}
+                className="w-full text-left text-base font-medium text-stone-700 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 active:scale-[0.98] transition-all"
               >
                 {label}
               </button>
             ))}
-            <button
-              onClick={() => reject()}
-              className="w-full text-stone-400 text-sm py-2 hover:text-stone-600 transition-colors"
-            >
-              Ohne Angabe überspringen
-            </button>
           </div>
         </div>
       )}

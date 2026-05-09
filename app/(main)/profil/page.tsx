@@ -2,19 +2,29 @@
 
 import { useEffect, useState } from 'react'
 import { Save, Check, Heart } from 'lucide-react'
-import {
-  createTodaySuggestion,
-  getOrCreateSuggestionForDate,
-  getSuggestionByDate,
-  tomorrowStr,
-  todayStr,
-  getProfile,
-  saveProfile,
-} from '@/lib/store'
-import type { DailySuggestion, Profile } from '@/lib/types'
-import { cn, formatIngredientLine } from '@/lib/utils'
+import { getProfile, saveProfile } from '@/lib/store'
+import type { Profile } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 const EQUIPMENT_OPTIONS = ['Herd', 'Backofen', 'Mikrowelle', 'Toaster', 'Wasserkocher', 'Mixer']
+
+/** stabile IDs (EU-übliche Lebensmittelallergene), Anzeige auf Deutsch */
+const ALLERGEN_OPTIONS: { id: string; label: string }[] = [
+  { id: 'gluten', label: 'Gluten / Weizen' },
+  { id: 'crustaceans', label: 'Krebstiere' },
+  { id: 'eggs', label: 'Eier' },
+  { id: 'fish', label: 'Fisch' },
+  { id: 'peanuts', label: 'Erdnüsse' },
+  { id: 'soy', label: 'Soja' },
+  { id: 'milk', label: 'Milch / Laktose' },
+  { id: 'nuts', label: 'Schalenfrüchte (Nüsse)' },
+  { id: 'celery', label: 'Sellerie' },
+  { id: 'mustard', label: 'Senf' },
+  { id: 'sesame', label: 'Sesam' },
+  { id: 'sulfites', label: 'Sulfite / Sulfit' },
+  { id: 'lupin', label: 'Lupinen' },
+  { id: 'molluscs', label: 'Weichtiere' },
+]
 
 function Toggle({
   label,
@@ -45,23 +55,10 @@ function Toggle({
 export default function ProfilPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [saved, setSaved] = useState(false)
-  const [todaySuggestion, setTodaySuggestion] = useState<DailySuggestion | null>(null)
-  const [tomorrowSuggestion, setTomorrowSuggestion] = useState<DailySuggestion | null>(null)
 
   useEffect(() => {
-    createTodaySuggestion()
-    setTodaySuggestion(getSuggestionByDate(todayStr()))
     setProfile(getProfile())
   }, [])
-
-  useEffect(() => {
-    if (!profile?.shopDayAhead) {
-      setTomorrowSuggestion(null)
-      return
-    }
-    const next = getOrCreateSuggestionForDate(tomorrowStr())
-    setTomorrowSuggestion(next)
-  }, [profile?.shopDayAhead])
 
   function save() {
     if (!profile) return
@@ -79,14 +76,16 @@ export default function ProfilPage() {
     })
   }
 
-  function refreshTodaySuggestion() {
-    createTodaySuggestion()
-    setTodaySuggestion(getSuggestionByDate(todayStr()))
+  function toggleAllergen(id: string) {
+    if (!profile) return
+    const has = profile.allergies.includes(id)
+    setProfile({
+      ...profile,
+      allergies: has ? profile.allergies.filter((a) => a !== id) : [...profile.allergies, id],
+    })
   }
 
   if (!profile) return null
-
-  const todayRecipe = todaySuggestion?.recipe
 
   return (
     <div className="px-4 pt-8 pb-6 flex flex-col gap-6">
@@ -105,7 +104,7 @@ export default function ProfilPage() {
       {/* Zeit */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
         <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          So lange koche ich gerne (wenn es sein muss)
+          So lange darf das Kochen dauern
         </h2>
         <div className="flex flex-wrap gap-2">
           {[10, 15, 20, 30, 45, 60].map((t) => (
@@ -129,7 +128,7 @@ export default function ProfilPage() {
       {/* Portionen */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
         <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Für so viele Leute koche ich gerne
+          Für so viele Leute koche ich
         </h2>
         <div className="flex items-center gap-4">
           <button
@@ -150,10 +149,32 @@ export default function ProfilPage() {
         </div>
       </div>
 
+      {/* Allergene / Vermeiden */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-stone-800 leading-snug">
+            Folgende Lebensmittel mag ich nicht verwenden
+          </h2>
+          <p className="text-sm text-stone-500 mt-1 leading-snug">
+            Übliche Allergene und Unverträglichkeiten – tippe zum Markieren (mehrere möglich).
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ALLERGEN_OPTIONS.map(({ id, label }) => (
+            <Toggle
+              key={id}
+              label={label}
+              active={profile.allergies.includes(id)}
+              onClick={() => toggleAllergen(id)}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Geräte */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
         <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Das benutze ich gerne in der Küche
+          Das würde ich verwenden
         </h2>
         <div className="flex flex-wrap gap-2">
           {EQUIPMENT_OPTIONS.map((item) => (
@@ -170,10 +191,10 @@ export default function ProfilPage() {
       {/* Vorschlagszeit */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
         <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Um diese Zeit hätte ich den Vorschlag gerne
+          Schick mir einen täglichen Vorschlag um:
         </h2>
         <div className="flex flex-wrap gap-2">
-          {[8, 9, 10, 11, 12, 16, 17, 18].map((h) => (
+          {[8, 9, 10].map((h) => (
             <button
               key={h}
               type="button"
@@ -189,108 +210,6 @@ export default function ProfilPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Einkaufsliste heute */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-stone-800 leading-snug flex-1">
-            Eine Einkaufsliste hätte ich gern
-          </h2>
-          <label className="flex items-center gap-2 shrink-0 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={profile.wantsShoppingList}
-              onChange={(e) =>
-                setProfile({ ...profile, wantsShoppingList: e.target.checked })
-              }
-              className="w-5 h-5 accent-orange-600 rounded border-stone-300"
-            />
-          </label>
-        </div>
-        <p className="text-sm text-stone-500">
-          Alle Zutaten für dein heutiges Tagesgericht – zum Abhaken beim Einkaufen.
-        </p>
-        {profile.wantsShoppingList && (
-          <>
-            {!todayRecipe && (
-              <p className="text-sm text-stone-500">
-                Noch kein Vorschlag für heute – kurz auf die Startseite wechseln, dann hier aktualisieren.
-              </p>
-            )}
-            {todayRecipe && (
-              <>
-                <p className="text-sm font-medium text-stone-700">{todayRecipe.title}</p>
-                <ul className="flex flex-col gap-2 border-t border-stone-100 pt-4">
-                  {todayRecipe.ingredients.map((ing, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-3 text-stone-800 text-base leading-snug"
-                    >
-                      <span className="mt-1.5 w-2 h-2 rounded-full bg-orange-400 shrink-0" />
-                      <span>{formatIngredientLine(ing)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  onClick={refreshTodaySuggestion}
-                  className="text-sm font-medium text-orange-700 hover:text-orange-800 self-start"
-                >
-                  Liste aktualisieren
-                </button>
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Tag vorher */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-stone-800 leading-snug flex-1">
-            Manchmal will ich schon einen Tag vorher einkaufen
-          </h2>
-          <label className="flex items-center gap-2 shrink-0 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={profile.shopDayAhead}
-              onChange={(e) =>
-                setProfile({ ...profile, shopDayAhead: e.target.checked })
-              }
-              className="w-5 h-5 accent-orange-600 rounded border-stone-300"
-            />
-          </label>
-        </div>
-        <p className="text-sm text-stone-500">
-          Wenn aktiv: du siehst auf der Startseite schon den Vorschlag für morgen und kannst hier die
-          Einkaufsliste dafür öffnen.
-        </p>
-        {profile.shopDayAhead && tomorrowSuggestion?.recipe && (
-          <div className="border-t border-stone-100 pt-4 flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Für morgen vorgemerkt
-            </p>
-            <p className="text-base font-semibold text-stone-900">{tomorrowSuggestion.recipe.title}</p>
-            <p className="text-sm font-medium text-stone-700">Einkauf für morgen</p>
-            <ul className="flex flex-col gap-2">
-              {tomorrowSuggestion.recipe.ingredients.map((ing, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 text-stone-800 text-base leading-snug"
-                >
-                  <span className="mt-1.5 w-2 h-2 rounded-full bg-orange-400 shrink-0" />
-                  <span>{formatIngredientLine(ing)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {profile.shopDayAhead && !tomorrowSuggestion?.recipe && (
-          <p className="text-sm text-stone-500">
-            Kein Rezept verfügbar – bitte im Admin aktive Rezepte anlegen.
-          </p>
-        )}
       </div>
 
       {/* Save */}

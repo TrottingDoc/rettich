@@ -55,6 +55,39 @@ create table if not exists feedback (
   created_at timestamptz default now()
 );
 
+-- Umfrage „Etwas anderes“ (Gründe + Rezeptmetriken zum Auswerten / Vergleichen)
+create table if not exists alternative_surveys (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  suggestion_id uuid references daily_suggestions(id),
+  recipe_id uuid references recipes(id),
+  reason text not null check (
+    reason in (
+      'faster',
+      'fewer_ingredients',
+      'fewer_utensils',
+      'dislike',
+      'no_mood',
+      'prefer_not_say'
+    )
+  ),
+  recipe_time_minutes int not null,
+  recipe_ingredient_count int not null,
+  recipe_pan_count int not null
+);
+
+-- Abgeleitete Grenzwerte für Empfehlungen (pro Nutzer/in eher eine Zeile in profile erweitern; hier als eigene Tabelle skizziert)
+create table if not exists recommendation_signals (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profile(id) on delete cascade,
+  time_minutes_cap int,
+  ingredient_count_cap int,
+  pan_count_cap int,
+  disliked_recipe_ids uuid[] default '{}',
+  updated_at timestamptz default now(),
+  unique (profile_id)
+);
+
 -- Auto-update updated_at on recipes
 create or replace function update_updated_at()
 returns trigger as $$

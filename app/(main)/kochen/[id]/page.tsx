@@ -229,7 +229,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
 
   if (!recipe) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0 py-16">
         <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -241,7 +241,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
 
   if (done) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center gap-6">
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0 px-6 py-12 text-center gap-6">
         <div className="text-7xl">🎉</div>
         <h2 className="text-3xl font-bold text-stone-900">Fertig!</h2>
         <p className="text-stone-500 text-lg">Guten Appetit!</p>
@@ -268,7 +268,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-6 pb-4">
         <button

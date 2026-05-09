@@ -69,12 +69,45 @@ export type Feedback = {
 export type Profile = {
   portions: number
   maxTimeMinutes: number
+  /** Vermiedene Allergene als stabile IDs (z. B. gluten, milk, nuts) */
   allergies: string[]
   dislikes: string[]
   equipment: string[]
   notificationHour: number
-  /** Einkaufsliste für das Tagesgericht anzeigen */
-  wantsShoppingList: boolean
-  /** Vorschlag & Liste für morgen einen Tag früher einsehbar */
-  shopDayAhead: boolean
+}
+
+/** Grund für „Etwas anderes“ – gleiche Werte wie in DB/Export */
+export type AlternativeSurveyReason =
+  | 'faster'
+  | 'fewer_ingredients'
+  | 'fewer_utensils'
+  | 'dislike'
+  | 'no_mood'
+  | 'prefer_not_say'
+
+/** Aus Umfrage + Rezeptmetriken – für Auswertung & nächste Empfehlung */
+export type AlternativeSurveyEntry = {
+  id: string
+  createdAt: string
+  suggestionId: string
+  recipeId: string
+  reason: AlternativeSurveyReason
+  recipeTimeMinutes: number
+  recipeIngredientCount: number
+  recipePanCount: number
+}
+
+/**
+ * Abgeleitete Grenzwerte aus wiederholten Umfragen (mit Profile.maxTimeMinutes kombinieren).
+ * Spiegelt die SQL-Tabelle recommendation_signals.
+ */
+export type RecommendationSignals = {
+  /** Zusätzliche Obergrenze Minuten (null = nur Profil) */
+  timeMinutesCap: number | null
+  /** Max. Zutaten-Anzahl laut Rezept-Meta */
+  ingredientCountCap: number | null
+  /** Max. Pfannen/Töpfe */
+  panCountCap: number | null
+  /** Bei „Mag ich nicht“ ausgeschlossene Rezept-IDs */
+  dislikedRecipeIds: string[]
 }
