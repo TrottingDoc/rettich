@@ -1,14 +1,21 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { Home, Clock, User } from 'lucide-react'
-import { Radish } from '@/components/Radish'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-dvh max-w-md mx-auto bg-white">
       <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-stone-200 px-6 py-3">
-        <Link href="/" className="flex items-center gap-2 w-fit">
-          <Radish size={22} />
-          <span className="font-semibold text-lg text-stone-900">
+        <Link href="/" className="flex items-center gap-1.5 w-fit">
+          <Image
+            src="/image_rettich.png"
+            alt="Rettich"
+            width={40}
+            height={40}
+            priority
+            className="object-contain"
+          />
+          <span className="font-bold text-2xl text-stone-900">
             Rett<span className="font-bold text-red-600">:</span>ich
           </span>
         </Link>

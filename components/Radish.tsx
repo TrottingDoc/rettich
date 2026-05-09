@@ -15,31 +15,28 @@ export function Radish({ size = 24, className }: RadishProps) {
       aria-hidden="true"
     >
       <path
-        d="M9 9C7 6 6 4 5 2.5C5 4.5 6 7 9 9Z"
+        d="M10.7 9.2C9.5 7 8.8 5 8.5 3C9.2 5 10 7.2 11.5 9Z"
         fill="#22c55e"
       />
       <path
-        d="M12 9C11 6 11 3 12 1.5C13 3 13 6 12 9Z"
+        d="M12 9.2C11.4 6.5 11.4 4 12 2C12.6 4 12.6 6.5 12 9.2Z"
         fill="#22c55e"
       />
       <path
-        d="M15 9C17 6 18 4 19 2.5C19 4.5 18 7 15 9Z"
+        d="M13.3 9.2C14.5 7 15.2 5 15.5 3C14.8 5 14 7.2 12.5 9Z"
         fill="#22c55e"
       />
 
+      <ellipse cx="12" cy="14.5" rx="4" ry="6" fill="#dc2626" />
       <path
-        d="M6.6 13.5Q9 12.8 12 13.6T17.4 13.5A5.5 5.5 0 0 1 6.6 13.5Z"
+        d="M8.8 18.1Q10.5 17.5 12 18T15.2 18.1A4 6 0 0 1 8.8 18.1Z"
         fill="#f5efe2"
       />
-      <path
-        d="M6.6 13.5A5.5 5.5 0 0 1 17.4 13.5Q15 14.4 12 13.6T6.6 13.5Z"
-        fill="#dc2626"
-      />
 
-      <ellipse cx="9.8" cy="11.6" rx="1.1" ry="1.4" fill="#f87171" opacity="0.55" />
+      <ellipse cx="10.4" cy="12" rx="1" ry="1.5" fill="#f87171" opacity="0.55" />
 
       <path
-        d="M12 20.3C12 21.3 12.5 22.1 12.3 23"
+        d="M12 20.5C12 21.5 12.4 22.3 12.3 23.4"
         stroke="#cdc6b6"
         strokeWidth="0.9"
         strokeLinecap="round"

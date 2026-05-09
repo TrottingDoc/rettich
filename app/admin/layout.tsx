@@ -1,14 +1,21 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { Plus, List } from 'lucide-react'
-import { Radish } from '@/components/Radish'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Radish size={24} />
-          <span className="font-semibold text-lg text-stone-900">
+        <div className="flex items-center gap-1.5">
+          <Image
+            src="/image_rettich.png"
+            alt="Rettich"
+            width={36}
+            height={36}
+            priority
+            className="object-contain"
+          />
+          <span className="font-bold text-xl text-stone-900">
             Rett<span className="font-bold text-red-600">:</span>ich Admin
           </span>
         </div>
