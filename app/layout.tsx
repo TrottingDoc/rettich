@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '🥕 Rett:ich',
-  description: 'Dein täglicher Kochbegleiter',
-  applicationName: '🥕 Rett:ich',
+  title: 'Rett:ich',
+  description: 'Dein tägliches Küchen-Navi',
+  applicationName: 'Rett:ich',
   themeColor: '#ea580c',
   appleWebApp: {
     capable: true,
-    title: '🥕 Rett:ich',
+    title: 'Rett:ich',
     statusBarStyle: 'default',
   },
   icons: {

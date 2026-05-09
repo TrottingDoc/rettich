@@ -3,9 +3,9 @@ import type { MetadataRoute } from 'next'
 /** PWA / „Zum Home-Bildschirm“ (Android Chrome, Desktop-Chromium, einige iOS-Fälle) */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '🥕 Rett:ich – Dein Kochbegleiter',
-    short_name: '🥕 Rett:ich',
-    description: 'Dein täglicher Kochbegleiter',
+    name: 'Rett:ich – Dein Küchen-Navi',
+    short_name: 'Rett:ich',
+    description: 'Dein tägliches Küchen-Navi',
     start_url: '/',
     scope: '/',
     display: 'standalone',
