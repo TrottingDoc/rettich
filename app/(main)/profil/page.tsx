@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Check, Heart } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Save, Check, Heart, LogOut } from 'lucide-react'
 import { getProfile, saveProfile } from '@/lib/store'
+import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -55,10 +57,22 @@ function Toggle({
 export default function ProfilPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [saved, setSaved] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     setProfile(getProfile())
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data.user?.email ?? null)
+    })
   }, [])
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   function save() {
     if (!profile) return
@@ -89,12 +103,25 @@ export default function ProfilPage() {
 
   return (
     <div className="px-4 pt-8 pb-6 flex flex-col gap-6">
-      <div className="flex items-start gap-3">
-        <Heart size={28} className="text-orange-600 shrink-0 mt-1" aria-hidden />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-stone-900">Vorlieben</h1>
-          <p className="text-stone-500 mt-1">Einmal ausfüllen, für immer passende Vorschläge.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <Heart size={28} className="text-orange-600 shrink-0 mt-1" aria-hidden />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-stone-900">Vorlieben</h1>
+            <p className="text-stone-500 mt-1">Einmal ausfüllen, für immer passende Vorschläge.</p>
+            {userEmail && (
+              <p className="text-xs text-stone-400 mt-0.5 truncate">{userEmail}</p>
+            )}
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-red-500 transition-colors shrink-0 mt-1"
+        >
+          <LogOut size={16} />
+          Abmelden
+        </button>
       </div>
 
       {/* Zeit */}

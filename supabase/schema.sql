@@ -27,6 +27,7 @@ create table if not exists recipes (
 
 create table if not exists profile (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null unique,
   portions int default 1,
   max_time_minutes int default 30,
   allergies text[] default '{}',
@@ -35,6 +36,10 @@ create table if not exists profile (
   notification_hour int default 10,
   created_at timestamptz default now()
 );
+
+-- Nutzer dürfen nur ihr eigenes Profil lesen und schreiben
+alter table profile enable row level security;
+create policy "Eigenes Profil" on profile for all using (auth.uid() = user_id);
 
 create table if not exists daily_suggestions (
   id uuid primary key default gen_random_uuid(),
