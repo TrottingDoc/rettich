@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat } from 'lucide-react'
+import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat, Minus, Plus } from 'lucide-react'
 import { getRecipe, saveFeedback, updateSuggestionStatus, getTodaySuggestion } from '@/lib/store'
 import type { Recipe, Step } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -59,12 +59,14 @@ function TimerBar({
   initialSeconds,
   label,
   onToggleRunning,
+  onAdjustTime,
 }: {
   remaining: number
   running: boolean
   initialSeconds: number
   label: string
   onToggleRunning: () => void
+  onAdjustTime: (deltaSeconds: number) => void
 }) {
   const mins = Math.floor(remaining / 60)
   const secs = remaining % 60
@@ -79,9 +81,26 @@ function TimerBar({
         </div>
       </div>
       <div className="flex items-center gap-3 border-t border-orange-200/80 pt-3">
-        <span className="text-lg font-bold text-orange-700 tabular-nums">
+        <button
+          type="button"
+          onClick={() => onAdjustTime(-60)}
+          disabled={remaining <= 0}
+          aria-label="Timer um eine Minute verkürzen"
+          className="p-2 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Minus size={16} />
+        </button>
+        <span className="min-w-16 text-center text-lg font-bold text-orange-700 tabular-nums">
           {mins}:{String(secs).padStart(2, '0')}
         </span>
+        <button
+          type="button"
+          onClick={() => onAdjustTime(60)}
+          aria-label="Timer um eine Minute verlängern"
+          className="p-2 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors"
+        >
+          <Plus size={16} />
+        </button>
         <button
           type="button"
           onClick={onToggleRunning}
@@ -225,6 +244,19 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
     setCookTimer((c) => (c ? { ...c, running: !c.running } : c))
   }, [])
 
+  const adjustCookTimer = useCallback((deltaSeconds: number) => {
+    setCookTimer((c) => {
+      if (!c) return c
+      const remaining = Math.max(0, c.remaining + deltaSeconds)
+      return {
+        ...c,
+        remaining,
+        initialSeconds: Math.max(remaining, c.initialSeconds + deltaSeconds),
+        running: remaining > 0 ? c.running : false,
+      }
+    })
+  }, [])
+
   const goToStep = useCallback(
     (nextIndex: number) => {
       if (!recipe) return
@@ -344,6 +376,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
               initialSeconds={cookTimer.initialSeconds}
               label={cookTimer.label}
               onToggleRunning={toggleCookTimer}
+              onAdjustTime={adjustCookTimer}
             />
           )}
 
