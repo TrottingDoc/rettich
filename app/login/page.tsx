@@ -43,12 +43,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-[#faf7f0] px-6">
       <div className="w-full max-w-sm flex flex-col items-center gap-8">
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-1.5">
           <Image
             src="/image_rettich.png"
             alt="Rettich"
-            width={80}
-            height={80}
+            width={160}
+            height={160}
             priority
             className="object-contain"
           />
