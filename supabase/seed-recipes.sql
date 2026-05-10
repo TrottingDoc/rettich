@@ -151,4 +151,45 @@ insert into recipes (
     {"problem":"Klumpen","solution":"Kräftig rühren."}
   ]'::jsonb,
   true
+),
+(
+  'Vodka-Nudeln',
+  'Cremige Tomaten-Pasta mit Parmesan und einem kleinen Schuss Vodka.',
+  '/image_rettich.png',
+  25, 2, 'basic',
+  true, false, false, 7, 2,
+  false,
+  '{vegetarisch,schnell}',
+  '[
+    {"name":"Nudeln","amount":"200","unit":"g"},
+    {"name":"Olivenöl","amount":"1","unit":"EL"},
+    {"name":"Knoblauch","amount":"1","unit":"Zehe"},
+    {"name":"Tomatenmark","amount":"2","unit":"EL"},
+    {"name":"Vodka","amount":"3","unit":"EL"},
+    {"name":"Sahne","amount":"100","unit":"ml"},
+    {"name":"Parmesan, gerieben","amount":"30","unit":"g"}
+  ]'::jsonb,
+  '[
+    {"text":"Einen Topf mit Wasser füllen und bei hoher Hitze zum Kochen bringen.","durationSeconds":300,"checkText":"Das Wasser soll sprudelnd kochen."},
+    {"text":"Knoblauch schälen und sehr fein hacken.","checkText":"Wenn du unsicher bist: lieber grob hacken als zu nah an den Fingern schneiden."},
+    {"text":"Salz und Nudeln ins kochende Wasser geben. Nach Packungsangabe kochen.","durationSeconds":480,"isStopPoint":true},
+    {"text":"Währenddessen Olivenöl in einer Pfanne bei mittlerer Hitze erwärmen. Knoblauch kurz anbraten.","durationSeconds":60,"checkText":"Der Knoblauch soll duften, aber nicht braun werden."},
+    {"text":"Tomatenmark in die Pfanne geben und 1 Minute rühren.","durationSeconds":60},
+    {"text":"Vodka dazugeben und 1–2 Minuten einkochen lassen.","durationSeconds":90,"checkText":"Es soll nicht mehr stark nach Alkohol riechen."},
+    {"text":"Sahne einrühren und die Sauce bei niedriger Hitze warm halten."},
+    {"text":"Nudeln abgießen, dabei eine kleine Tasse Nudelwasser aufheben."},
+    {"text":"Nudeln und Parmesan in die Sauce geben. Alles gut mischen. Bei Bedarf etwas Nudelwasser dazugeben, bis die Sauce cremig ist."},
+    {"text":"Abschmecken und sofort servieren."}
+  ]'::jsonb,
+  '[
+    {"ingredient":"Vodka","substitute":"Ein Spritzer Zitronensaft oder etwas Nudelwasser – dann ist es eine cremige Tomaten-Sahne-Pasta"},
+    {"ingredient":"Sahne","substitute":"Kochsahne oder Hafercuisine"},
+    {"ingredient":"Parmesan","substitute":"Geriebener Hartkäse oder Hefeflocken"}
+  ]'::jsonb,
+  '[
+    {"problem":"Sauce ist zu dick","solution":"Esslöffelweise Nudelwasser einrühren."},
+    {"problem":"Sauce schmeckt zu sauer","solution":"Einen kleinen Schuss Sahne oder eine Prise Zucker dazugeben."},
+    {"problem":"Knoblauch wird braun","solution":"Pfanne sofort vom Herd nehmen und mit Sahne ablöschen."}
+  ]'::jsonb,
+  true
 );

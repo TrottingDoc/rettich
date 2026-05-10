@@ -23,6 +23,10 @@ export default function LoginPage() {
       email: email.trim(),
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          app_name: 'Rett:ich',
+          login_reason: 'Du hast einen Anmelde-Link für die Rett:ich App angefordert.',
+        },
       },
     })
 
