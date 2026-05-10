@@ -29,6 +29,22 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('onboarding_completed')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!profile?.onboarding_completed) {
+          return NextResponse.redirect(new URL('/onboarding', request.url))
+        }
+      }
+
       return NextResponse.redirect(new URL(next, request.url))
     }
   }

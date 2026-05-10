@@ -12,8 +12,19 @@ export default function BearbeitenPage({ params }: { params: Promise<{ id: strin
   const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined)
 
   useEffect(() => {
-    const r = getRecipe(id)
-    setRecipe(r ?? null)
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await getRecipe(id)
+        if (!cancelled) setRecipe(r ?? null)
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) setRecipe(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   if (recipe === undefined) return null

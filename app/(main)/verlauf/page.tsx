@@ -20,8 +20,20 @@ export default function VerlaufPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
 
   useEffect(() => {
-    setSuggestions(getPastSuggestions())
-    setFeedbacks(getFeedback())
+    let cancelled = false
+    void (async () => {
+      try {
+        const [s, f] = await Promise.all([getPastSuggestions(), getFeedback()])
+        if (cancelled) return
+        setSuggestions(s)
+        setFeedbacks(f)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const cooked = suggestions.filter((s) => s.status === 'completed' || s.status === 'accepted')

@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Home, Clock, Heart, ShoppingCart } from 'lucide-react'
+import LogoutButton from '@/components/LogoutButton'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-dvh max-w-md mx-auto bg-white">
-      <header className="sticky top-0 z-10 bg-[#faf7f0]/95 backdrop-blur border-b border-stone-200/70 px-6 pt-1.5 pb-2">
+      <header className="sticky top-0 z-10 bg-[#faf7f0]/95 backdrop-blur border-b border-stone-200/70 px-6 pt-1.5 pb-2 flex items-center justify-between gap-3">
         <Link href="/" className="flex items-center gap-[3px] w-fit">
           <Image
             src="/image_rettich.png"
@@ -24,6 +25,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </span>
           </div>
         </Link>
+        <LogoutButton className="shrink-0" showLabel={false} />
       </header>
 
       <main className="flex flex-1 flex-col min-h-0 overflow-y-auto pb-20">{children}</main>

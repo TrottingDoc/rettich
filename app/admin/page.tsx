@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Pencil, Trash2, Clock, CheckCircle, XCircle } from 'lucide-react'
 import { getRecipes, deleteRecipe } from '@/lib/store'
 import type { Recipe } from '@/lib/types'
-import { cn } from '@/lib/utils'
 
 const CHOPPING_DE: Record<string, string> = {
   none: 'Kein Schneiden',
@@ -18,13 +17,28 @@ export default function AdminPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
-    setRecipes(getRecipes())
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await getRecipes()
+        if (!cancelled) setRecipes(r)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  function handleDelete(id: string) {
-    deleteRecipe(id)
-    setRecipes(getRecipes())
-    setConfirmDelete(null)
+  async function handleDelete(id: string) {
+    try {
+      await deleteRecipe(id)
+      setRecipes(await getRecipes())
+      setConfirmDelete(null)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -91,7 +105,7 @@ export default function AdminPage() {
                     {confirmDelete === recipe.id ? (
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleDelete(recipe.id)}
+                          onClick={() => void handleDelete(recipe.id)}
                           className="text-xs font-medium text-red-600 border border-red-300 rounded-lg px-2 py-1 hover:bg-red-50 transition-colors"
                         >
                           Löschen

@@ -17,19 +17,49 @@ export default function EinkaufenPage() {
   const [todaySuggestion, setTodaySuggestion] = useState<DailySuggestion | null>(null)
   const [tomorrowSuggestion, setTomorrowSuggestion] = useState<DailySuggestion | null>(null)
 
-  function refreshLists() {
-    createTodaySuggestion()
-    setTodaySuggestion(getSuggestionByDate(todayStr()))
-    setTomorrowSuggestion(getOrCreateSuggestionForDate(tomorrowStr()))
+  async function refreshLists() {
+    try {
+      await createTodaySuggestion()
+      const [today, tomorrow] = await Promise.all([
+        getSuggestionByDate(todayStr()),
+        getOrCreateSuggestionForDate(tomorrowStr()),
+      ])
+      setTodaySuggestion(today)
+      setTomorrowSuggestion(tomorrow)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  function requestNewTomorrowSuggestion() {
-    const next = refreshTomorrowSuggestion()
-    if (next) setTomorrowSuggestion(next)
+  async function requestNewTomorrowSuggestion() {
+    try {
+      const next = await refreshTomorrowSuggestion()
+      if (next) setTomorrowSuggestion(next)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   useEffect(() => {
-    refreshLists()
+    let cancelled = false
+    void (async () => {
+      try {
+        await createTodaySuggestion()
+        const [today, tomorrow] = await Promise.all([
+          getSuggestionByDate(todayStr()),
+          getOrCreateSuggestionForDate(tomorrowStr()),
+        ])
+        if (!cancelled) {
+          setTodaySuggestion(today)
+          setTomorrowSuggestion(tomorrow)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const todayRecipe = todaySuggestion?.recipe
@@ -75,7 +105,7 @@ export default function EinkaufenPage() {
         )}
         <button
           type="button"
-          onClick={refreshLists}
+          onClick={() => void refreshLists()}
           className="text-sm font-medium text-orange-700 hover:text-orange-800 self-start"
         >
           Liste aktualisieren
@@ -98,7 +128,7 @@ export default function EinkaufenPage() {
             </p>
             <button
               type="button"
-              onClick={requestNewTomorrowSuggestion}
+              onClick={() => void requestNewTomorrowSuggestion()}
               className="flex items-center gap-2 text-sm font-medium text-stone-700 hover:text-orange-800 self-start py-1"
             >
               <RefreshCw size={16} className="shrink-0" />

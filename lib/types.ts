@@ -74,6 +74,7 @@ export type Profile = {
   dislikes: string[]
   equipment: string[]
   notificationHour: number
+  onboardingCompleted: boolean
 }
 
 /** Grund für „Etwas anderes“ – gleiche Werte wie in DB/Export */

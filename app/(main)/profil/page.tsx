@@ -1,32 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Save, Check, Heart, LogOut } from 'lucide-react'
+import { Save, Check, Heart } from 'lucide-react'
 import { getProfile, saveProfile } from '@/lib/store'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import LogoutButton from '@/components/LogoutButton'
+import { ALLERGEN_OPTIONS, NOTIFICATION_HOURS } from '@/lib/profile-options'
 
 const EQUIPMENT_OPTIONS = ['Herd', 'Backofen', 'Mikrowelle', 'Toaster', 'Wasserkocher', 'Mixer']
-
-/** stabile IDs (EU-übliche Lebensmittelallergene), Anzeige auf Deutsch */
-const ALLERGEN_OPTIONS: { id: string; label: string }[] = [
-  { id: 'gluten', label: 'Gluten / Weizen' },
-  { id: 'crustaceans', label: 'Krebstiere' },
-  { id: 'eggs', label: 'Eier' },
-  { id: 'fish', label: 'Fisch' },
-  { id: 'peanuts', label: 'Erdnüsse' },
-  { id: 'soy', label: 'Soja' },
-  { id: 'milk', label: 'Milch / Laktose' },
-  { id: 'nuts', label: 'Schalenfrüchte (Nüsse)' },
-  { id: 'celery', label: 'Sellerie' },
-  { id: 'mustard', label: 'Senf' },
-  { id: 'sesame', label: 'Sesam' },
-  { id: 'sulfites', label: 'Sulfite / Sulfit' },
-  { id: 'lupin', label: 'Lupinen' },
-  { id: 'molluscs', label: 'Weichtiere' },
-]
 
 function Toggle({
   label,
@@ -58,27 +41,35 @@ export default function ProfilPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [saved, setSaved] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
-  const router = useRouter()
 
   useEffect(() => {
-    setProfile(getProfile())
+    let cancelled = false
+    void (async () => {
+      try {
+        const p = await getProfile()
+        if (!cancelled) setProfile(p)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null)
+      if (!cancelled) setUserEmail(data.user?.email ?? null)
     })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
-  function save() {
+  async function save() {
     if (!profile) return
-    saveProfile(profile)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await saveProfile(profile)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   function toggleEquipment(item: string) {
@@ -114,14 +105,7 @@ export default function ProfilPage() {
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-red-500 transition-colors shrink-0 mt-1"
-        >
-          <LogOut size={16} />
-          Abmelden
-        </button>
+        <LogoutButton className="shrink-0 mt-1" />
       </div>
 
       {/* Zeit */}
@@ -217,7 +201,7 @@ export default function ProfilPage() {
           Schick mir einen täglichen Vorschlag um:
         </h2>
         <div className="flex flex-wrap gap-2">
-          {[8, 9, 10].map((h) => (
+          {NOTIFICATION_HOURS.map((h) => (
             <button
               key={h}
               type="button"
@@ -238,7 +222,7 @@ export default function ProfilPage() {
       {/* Save */}
       <button
         type="button"
-        onClick={save}
+        onClick={() => void save()}
         className={cn(
           'flex items-center justify-center gap-2 w-full font-semibold text-lg py-4 rounded-xl active:scale-95 transition-all',
           saved ? 'bg-green-600 text-white' : 'bg-orange-600 text-white hover:bg-orange-700',

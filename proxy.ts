@@ -28,15 +28,24 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isPublic =
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/auth') ||
-    pathname.startsWith('/admin')
 
-  if (!user && !isPublic) {
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth')
+  const isAdminRoute = pathname.startsWith('/admin')
+
+  if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  if (isAdminRoute && user) {
+    const role =
+      (user.app_metadata as { role?: string } | undefined)?.role ?? null
+    if (role !== 'admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

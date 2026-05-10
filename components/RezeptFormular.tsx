@@ -154,22 +154,28 @@ export default function RezeptFormular({ recipe }: { recipe?: Recipe }) {
     update('tags', has ? form.tags.filter((t) => t !== tag) : [...form.tags, tag])
   }
 
-  function submit() {
+  async function submit() {
     if (!form.title.trim()) return
     setSaving(true)
     const saved: Recipe = {
       ...form,
-      id: recipe?.id ?? crypto.randomUUID(),
+      id: recipe?.id ?? '',
       createdAt: recipe?.createdAt ?? new Date().toISOString(),
+      imageUrl: form.imageUrl?.trim() || undefined,
       ingredientCount: form.ingredients.filter((i) => i.name).length,
     }
-    saveRecipe(saved)
-    router.push('/admin')
+    try {
+      await saveRecipe(saved)
+      router.push('/admin')
+    } catch (err) {
+      console.error(err)
+      setSaving(false)
+    }
   }
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); submit() }}
+      onSubmit={(e) => { e.preventDefault(); void submit() }}
       className="flex flex-col gap-8"
     >
       {/* Basics */}
@@ -188,6 +194,19 @@ export default function RezeptFormular({ recipe }: { recipe?: Recipe }) {
             onChange={(v) => update('description', v)}
             placeholder="Ein kurzer Satz, der Lust aufs Kochen macht."
           />
+        </div>
+
+        <div>
+          <FieldLabel>Bild-URL</FieldLabel>
+          <Input
+            type="url"
+            value={form.imageUrl ?? ''}
+            onChange={(v) => update('imageUrl', v)}
+            placeholder="https://deine-domain.de/rettich/rezepte/ruehrei.webp"
+          />
+          <p className="text-xs text-stone-500 mt-1.5">
+            Öffentlich erreichbarer Link zu einem Bild, z. B. aus deinem all-inkl-Webspace.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

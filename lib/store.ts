@@ -1,5 +1,6 @@
 'use client'
 
+import { createClient } from './supabase/client'
 import type {
   Recipe,
   DailySuggestion,
@@ -9,16 +10,148 @@ import type {
   AlternativeSurveyEntry,
   RecommendationSignals,
 } from './types'
-import { MOCK_RECIPES, DEFAULT_PROFILE } from './mock-data'
 import { scoreRecipeCravingMatch } from './craving-options'
+import { NOTIFICATION_HOURS } from './profile-options'
 
-const KEYS = {
-  recipes: 'rettich_recipes',
-  suggestions: 'rettich_suggestions',
-  feedback: 'rettich_feedback',
-  profile: 'rettich_profile',
-  alternativeSurveys: 'rettich_alternative_surveys',
-  recommendationSignals: 'rettich_recommendation_signals',
+// =============================================================================
+// Mapping snake_case (DB) <-> camelCase (App)
+// =============================================================================
+
+type RecipeRow = {
+  id: string
+  title: string
+  description: string | null
+  image_url: string | null
+  time_minutes: number
+  portions: number | null
+  chopping: 'none' | 'basic' | 'lots' | null
+  uses_stove: boolean | null
+  uses_oven: boolean | null
+  requires_multitasking: boolean | null
+  ingredient_count: number | null
+  pan_count: number | null
+  can_walk_away: boolean | null
+  tags: string[] | null
+  ingredients: Recipe['ingredients']
+  steps: Recipe['steps']
+  substitutions: Recipe['substitutions'] | null
+  fixes: Recipe['fixes'] | null
+  is_active: boolean | null
+  created_at: string
+}
+
+function mapRecipe(row: RecipeRow): Recipe {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? '',
+    imageUrl: row.image_url ?? undefined,
+    timeMinutes: row.time_minutes,
+    portions: row.portions ?? 1,
+    chopping: row.chopping ?? 'none',
+    usesStove: row.uses_stove ?? false,
+    usesOven: row.uses_oven ?? false,
+    requiresMultitasking: row.requires_multitasking ?? false,
+    ingredientCount: row.ingredient_count ?? 0,
+    panCount: row.pan_count ?? 1,
+    canWalkAway: row.can_walk_away ?? false,
+    tags: row.tags ?? [],
+    ingredients: row.ingredients ?? [],
+    steps: row.steps ?? [],
+    substitutions: row.substitutions ?? [],
+    fixes: row.fixes ?? [],
+    isActive: row.is_active ?? true,
+    createdAt: row.created_at,
+  }
+}
+
+function recipeToRow(r: Recipe): Omit<RecipeRow, 'id' | 'created_at'> & { id?: string } {
+  return {
+    ...(r.id ? { id: r.id } : {}),
+    title: r.title,
+    description: r.description,
+    image_url: r.imageUrl ?? null,
+    time_minutes: r.timeMinutes,
+    portions: r.portions,
+    chopping: r.chopping,
+    uses_stove: r.usesStove,
+    uses_oven: r.usesOven,
+    requires_multitasking: r.requiresMultitasking,
+    ingredient_count: r.ingredientCount,
+    pan_count: r.panCount,
+    can_walk_away: r.canWalkAway,
+    tags: r.tags,
+    ingredients: r.ingredients,
+    steps: r.steps,
+    substitutions: r.substitutions,
+    fixes: r.fixes,
+    is_active: r.isActive,
+  }
+}
+
+type ProfileRow = {
+  id: string
+  user_id: string
+  portions: number | null
+  max_time_minutes: number | null
+  allergies: string[] | null
+  dislikes: string[] | null
+  equipment: string[] | null
+  notification_hour: number | null
+  onboarding_completed: boolean | null
+}
+
+const DEFAULT_PROFILE: Profile = {
+  portions: 2,
+  maxTimeMinutes: 60,
+  allergies: [],
+  dislikes: [],
+  equipment: ['Herd', 'Toaster'],
+  notificationHour: 10,
+  onboardingCompleted: false,
+}
+
+function mapProfile(row: ProfileRow | null): Profile {
+  if (!row) return DEFAULT_PROFILE
+  const h = row.notification_hour ?? DEFAULT_PROFILE.notificationHour
+  return {
+    portions: row.portions ?? DEFAULT_PROFILE.portions,
+    maxTimeMinutes: row.max_time_minutes ?? DEFAULT_PROFILE.maxTimeMinutes,
+    allergies: row.allergies ?? [],
+    dislikes: row.dislikes ?? [],
+    equipment: row.equipment ?? DEFAULT_PROFILE.equipment,
+    notificationHour: NOTIFICATION_HOURS.includes(h as (typeof NOTIFICATION_HOURS)[number])
+      ? h
+      : DEFAULT_PROFILE.notificationHour,
+    onboardingCompleted: row.onboarding_completed ?? DEFAULT_PROFILE.onboardingCompleted,
+  }
+}
+
+type SuggestionRow = {
+  id: string
+  user_id: string
+  date: string
+  recipe_id: string | null
+  status: DailySuggestion['status']
+  rejection_reason: string | null
+}
+
+function mapSuggestion(row: SuggestionRow): DailySuggestion {
+  return {
+    id: row.id,
+    date: row.date,
+    recipeId: row.recipe_id ?? '',
+    status: row.status,
+    rejectionReason: row.rejection_reason ?? undefined,
+  }
+}
+
+type SignalsRow = {
+  user_id: string
+  time_minutes_cap: number | null
+  ingredient_count_cap: number | null
+  pan_count_cap: number | null
+  disliked_recipe_ids: string[] | null
 }
 
 const DEFAULT_SIGNALS: RecommendationSignals = {
@@ -27,6 +160,208 @@ const DEFAULT_SIGNALS: RecommendationSignals = {
   panCountCap: null,
   dislikedRecipeIds: [],
 }
+
+function mapSignals(row: SignalsRow | null): RecommendationSignals {
+  if (!row) return DEFAULT_SIGNALS
+  return {
+    timeMinutesCap: row.time_minutes_cap,
+    ingredientCountCap: row.ingredient_count_cap,
+    panCountCap: row.pan_count_cap,
+    dislikedRecipeIds: row.disliked_recipe_ids ?? [],
+  }
+}
+
+type FeedbackRow = {
+  id: string
+  user_id: string
+  suggestion_id: string | null
+  recipe_id: string | null
+  would_cook_again: boolean | null
+  too_hard: boolean | null
+  too_long: boolean | null
+  created_at: string
+}
+
+function mapFeedback(row: FeedbackRow): Feedback {
+  return {
+    id: row.id,
+    suggestionId: row.suggestion_id ?? '',
+    recipeId: row.recipe_id ?? '',
+    wouldCookAgain: row.would_cook_again ?? false,
+    tooHard: row.too_hard ?? false,
+    tooLong: row.too_long ?? false,
+    createdAt: row.created_at,
+  }
+}
+
+type SurveyRow = {
+  id: string
+  user_id: string
+  created_at: string
+  suggestion_id: string | null
+  recipe_id: string | null
+  reason: AlternativeSurveyReason
+  recipe_time_minutes: number
+  recipe_ingredient_count: number
+  recipe_pan_count: number
+  craving_choice_ids: string[] | null
+}
+
+function mapSurvey(row: SurveyRow): AlternativeSurveyEntry {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    suggestionId: row.suggestion_id ?? '',
+    recipeId: row.recipe_id ?? '',
+    reason: row.reason,
+    recipeTimeMinutes: row.recipe_time_minutes,
+    recipeIngredientCount: row.recipe_ingredient_count,
+    recipePanCount: row.recipe_pan_count,
+    ...(row.craving_choice_ids?.length ? { cravingChoiceIds: row.craving_choice_ids } : {}),
+  }
+}
+
+// =============================================================================
+// Auth helper
+// =============================================================================
+
+async function requireUserId(): Promise<string> {
+  const supabase = createClient()
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data.user) throw new Error('Not authenticated')
+  return data.user.id
+}
+
+// =============================================================================
+// Recipes
+// =============================================================================
+
+export async function getRecipes(): Promise<Recipe[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('recipes')
+    .select('*')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data as RecipeRow[] | null)?.map(mapRecipe) ?? []
+}
+
+export async function getRecipe(id: string): Promise<Recipe | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('recipes')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data ? mapRecipe(data as RecipeRow) : null
+}
+
+export async function saveRecipe(recipe: Recipe): Promise<void> {
+  const supabase = createClient()
+  const row = recipeToRow(recipe)
+  if (recipe.id) {
+    const { error } = await supabase.from('recipes').update(row).eq('id', recipe.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('recipes').insert(row)
+    if (error) throw error
+  }
+}
+
+export async function deleteRecipe(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('recipes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// =============================================================================
+// Profile
+// =============================================================================
+
+export async function getProfile(): Promise<Profile> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('profile')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return mapProfile((data as ProfileRow | null) ?? null)
+}
+
+export async function saveProfile(profile: Profile): Promise<void> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('profile')
+    .upsert(
+      {
+        user_id: userId,
+        portions: profile.portions,
+        max_time_minutes: profile.maxTimeMinutes,
+        allergies: profile.allergies,
+        dislikes: profile.dislikes,
+        equipment: profile.equipment,
+        notification_hour: profile.notificationHour,
+        onboarding_completed: profile.onboardingCompleted,
+      },
+      { onConflict: 'user_id' },
+    )
+  if (error) throw error
+}
+
+// =============================================================================
+// Recommendation signals (per User)
+// =============================================================================
+
+export async function getRecommendationSignals(): Promise<RecommendationSignals> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('recommendation_signals')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return mapSignals((data as SignalsRow | null) ?? null)
+}
+
+async function saveRecommendationSignals(signals: RecommendationSignals): Promise<void> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('recommendation_signals')
+    .upsert(
+      {
+        user_id: userId,
+        time_minutes_cap: signals.timeMinutesCap,
+        ingredient_count_cap: signals.ingredientCountCap,
+        pan_count_cap: signals.panCountCap,
+        disliked_recipe_ids: signals.dislikedRecipeIds,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    )
+  if (error) throw error
+}
+
+export async function getAlternativeSurveyEntries(): Promise<AlternativeSurveyEntry[]> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('alternative_surveys')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data as SurveyRow[] | null)?.map(mapSurvey) ?? []
+}
+
+// =============================================================================
+// Pure logic (synchron, ohne DB) – Recommendation Engine
+// =============================================================================
 
 type RelaxFlags = {
   ignorePanCap?: boolean
@@ -43,116 +378,12 @@ const RELAXATION_STEPS: RelaxFlags[] = [
   { ignorePanCap: true, ignoreIngredientCap: true, ignoreTimeSignal: true, ignoreDisliked: true },
 ]
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function save(key: string, value: unknown) {
-  localStorage.setItem(key, JSON.stringify(value))
-}
-
-// Recipes
-
-export function getRecipes(): Recipe[] {
-  return load(KEYS.recipes, MOCK_RECIPES)
-}
-
-export function getRecipe(id: string): Recipe | undefined {
-  return getRecipes().find((r) => r.id === id)
-}
-
-export function saveRecipe(recipe: Recipe) {
-  const recipes = getRecipes()
-  const idx = recipes.findIndex((r) => r.id === recipe.id)
-  if (idx >= 0) {
-    recipes[idx] = recipe
-  } else {
-    recipes.push(recipe)
-  }
-  save(KEYS.recipes, recipes)
-}
-
-export function deleteRecipe(id: string) {
-  save(
-    KEYS.recipes,
-    getRecipes().filter((r) => r.id !== id),
-  )
-}
-
-// Profile
-
-export function getProfile(): Profile {
-  const stored = load<Record<string, unknown>>(KEYS.profile, {})
-  return {
-    portions:
-      typeof stored.portions === 'number' ? stored.portions : DEFAULT_PROFILE.portions,
-    maxTimeMinutes:
-      typeof stored.maxTimeMinutes === 'number'
-        ? stored.maxTimeMinutes
-        : DEFAULT_PROFILE.maxTimeMinutes,
-    allergies: Array.isArray(stored.allergies)
-      ? (stored.allergies as string[])
-      : DEFAULT_PROFILE.allergies,
-    dislikes: Array.isArray(stored.dislikes)
-      ? (stored.dislikes as string[])
-      : DEFAULT_PROFILE.dislikes,
-    equipment: Array.isArray(stored.equipment)
-      ? (stored.equipment as string[])
-      : DEFAULT_PROFILE.equipment,
-    notificationHour: (() => {
-      const h =
-        typeof stored.notificationHour === 'number'
-          ? stored.notificationHour
-          : DEFAULT_PROFILE.notificationHour
-      const allowed = [8, 9, 10] as const
-      return allowed.includes(h as (typeof allowed)[number]) ? h : DEFAULT_PROFILE.notificationHour
-    })(),
-  }
-}
-
-export function saveProfile(profile: Profile) {
-  save(KEYS.profile, profile)
-}
-
-// --- „Etwas anderes“-Umfrage & Empfehlungs-Signale (localStorage; Schema in supabase/schema.sql) ---
-
-export function getRecommendationSignals(): RecommendationSignals {
-  const raw = load<Partial<RecommendationSignals>>(KEYS.recommendationSignals, {})
-  return {
-    timeMinutesCap:
-      typeof raw.timeMinutesCap === 'number' ? raw.timeMinutesCap : DEFAULT_SIGNALS.timeMinutesCap,
-    ingredientCountCap:
-      typeof raw.ingredientCountCap === 'number'
-        ? raw.ingredientCountCap
-        : DEFAULT_SIGNALS.ingredientCountCap,
-    panCountCap:
-      typeof raw.panCountCap === 'number' ? raw.panCountCap : DEFAULT_SIGNALS.panCountCap,
-    dislikedRecipeIds: Array.isArray(raw.dislikedRecipeIds)
-      ? raw.dislikedRecipeIds
-      : DEFAULT_SIGNALS.dislikedRecipeIds,
-  }
-}
-
-function saveRecommendationSignals(signals: RecommendationSignals) {
-  save(KEYS.recommendationSignals, signals)
-}
-
-export function getAlternativeSurveyEntries(): AlternativeSurveyEntry[] {
-  return load<AlternativeSurveyEntry[]>(KEYS.alternativeSurveys, [])
-}
-
-/** Reine Berechnung: welche Signale gelten nach einer Umfrage-Antwort (ohne Speichern). */
 export function deriveRecommendationSignalsAfterReason(
   prev: RecommendationSignals,
   recipe: Recipe,
   reason: AlternativeSurveyReason,
+  profile: Profile,
 ): RecommendationSignals {
-  const profile = getProfile()
   const signals: RecommendationSignals = {
     timeMinutesCap: prev.timeMinutesCap,
     ingredientCountCap: prev.ingredientCountCap,
@@ -188,7 +419,6 @@ export function deriveRecommendationSignalsAfterReason(
       break
     }
     case 'specific_craving':
-      break
     default:
       break
   }
@@ -196,42 +426,14 @@ export function deriveRecommendationSignalsAfterReason(
   return signals
 }
 
-/** Bevorzugt Rezepte, deren Zutaten zu den gewählten „Lüsten“ passen; sonst ein beliebiges passendes Ersatzrezept. */
-function pickRecipeForSpecificCraving(
-  excludeRecipeId: string,
-  signals: RecommendationSignals,
-  cravingChoiceIds: string[],
-): Recipe | null {
-  const exclude = new Set([excludeRecipeId])
-  for (const relax of RELAXATION_STEPS) {
-    const matched = getRecipes().filter((r) => recipeMatchesRelax(r, exclude, relax, signals))
-    const scored = matched
-      .map((r) => ({ r, score: scoreRecipeCravingMatch(r, cravingChoiceIds) }))
-      .filter(({ score }) => score > 0)
-    if (scored.length) {
-      const best = Math.max(...scored.map((x) => x.score))
-      const top = scored.filter((x) => x.score === best).map((x) => x.r)
-      return top[Math.floor(Math.random() * top.length)]!
-    }
-  }
-  const pool = pickRecipesMatchingSignals(exclude, signals)
-  if (!pool.length) return null
-  return pool[Math.floor(Math.random() * pool.length)]!
-}
-
-export type ApplySomethingElseOptions = {
-  cravingChoiceIds?: string[]
-}
-
 function recipeMatchesRelax(
   r: Recipe,
   excludeIds: Set<string>,
   relax: RelaxFlags,
   signals: RecommendationSignals,
+  profile: Profile,
 ): boolean {
   if (!r.isActive || excludeIds.has(r.id)) return false
-
-  const profile = getProfile()
 
   let timeMax = profile.maxTimeMinutes
   if (!relax.ignoreTimeSignal && signals.timeMinutesCap != null) {
@@ -252,127 +454,124 @@ function recipeMatchesRelax(
   return true
 }
 
-/**
- * Pool gemäß Profil + Signale (optional overrides gespeicherte Werte); bei leerem Treffer Lockerung.
- */
 export function pickRecipesMatchingSignals(
+  recipes: Recipe[],
   excludeIds: Set<string>,
-  signalsOverride?: RecommendationSignals,
+  signals: RecommendationSignals,
+  profile: Profile,
 ): Recipe[] {
-  const signalsBase = signalsOverride ?? getRecommendationSignals()
   for (const relax of RELAXATION_STEPS) {
-    const list = getRecipes().filter((r) => recipeMatchesRelax(r, excludeIds, relax, signalsBase))
+    const list = recipes.filter((r) => recipeMatchesRelax(r, excludeIds, relax, signals, profile))
     if (list.length) return list
   }
-  const profile = getProfile()
-  return getRecipes().filter(
+  return recipes.filter(
     (r) => r.isActive && !excludeIds.has(r.id) && r.timeMinutes <= profile.maxTimeMinutes,
   )
 }
 
-export function pickRecipeMatchingSignals(excludeRecipeId: string): Recipe | null {
-  const pool = pickRecipesMatchingSignals(new Set([excludeRecipeId]))
+function pickRecipeForSpecificCraving(
+  recipes: Recipe[],
+  excludeRecipeId: string,
+  signals: RecommendationSignals,
+  profile: Profile,
+  cravingChoiceIds: string[],
+): Recipe | null {
+  const exclude = new Set([excludeRecipeId])
+  for (const relax of RELAXATION_STEPS) {
+    const matched = recipes.filter((r) => recipeMatchesRelax(r, exclude, relax, signals, profile))
+    const scored = matched
+      .map((r) => ({ r, score: scoreRecipeCravingMatch(r, cravingChoiceIds) }))
+      .filter(({ score }) => score > 0)
+    if (scored.length) {
+      const best = Math.max(...scored.map((x) => x.score))
+      const top = scored.filter((x) => x.score === best).map((x) => x.r)
+      return top[Math.floor(Math.random() * top.length)]!
+    }
+  }
+  const pool = pickRecipesMatchingSignals(recipes, exclude, signals, profile)
   if (!pool.length) return null
   return pool[Math.floor(Math.random() * pool.length)]!
 }
 
-/**
- * Nach Umfrage: erst prüfen, ob ein Ersatz existiert; dann Umfrage + Signale persistieren.
- * Bei `specific_craving` sind `cravingChoiceIds` (mind. eine ID) nötig.
- */
-export function applySomethingElse(
-  suggestion: DailySuggestion,
-  recipe: Recipe,
-  reason: AlternativeSurveyReason,
-  options?: ApplySomethingElseOptions,
-): DailySuggestion | null {
-  const cravingIds =
-    reason === 'specific_craving' ? (options?.cravingChoiceIds?.filter(Boolean) ?? []) : []
-  if (reason === 'specific_craving' && cravingIds.length === 0) return null
-
-  const prevSignals = getRecommendationSignals()
-  const nextSignals = deriveRecommendationSignalsAfterReason(prevSignals, recipe, reason)
-
-  let nextRecipe: Recipe | null = null
-  if (reason === 'specific_craving') {
-    nextRecipe = pickRecipeForSpecificCraving(recipe.id, nextSignals, cravingIds)
-  } else {
-    const pool = pickRecipesMatchingSignals(new Set([recipe.id]), nextSignals)
-    if (!pool.length) return null
-    nextRecipe = pool[Math.floor(Math.random() * pool.length)]!
-  }
-
-  if (!nextRecipe) return null
-
-  const entry: AlternativeSurveyEntry = {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    suggestionId: suggestion.id,
-    recipeId: recipe.id,
-    reason,
-    recipeTimeMinutes: recipe.timeMinutes,
-    recipeIngredientCount: recipe.ingredientCount,
-    recipePanCount: recipe.panCount,
-    ...(reason === 'specific_craving' && cravingIds.length ? { cravingChoiceIds: cravingIds } : {}),
-  }
-  save(KEYS.alternativeSurveys, [...getAlternativeSurveyEntries(), entry])
-  saveRecommendationSignals(nextSignals)
-
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  const idx = suggestions.findIndex((s) => s.id === suggestion.id)
-  if (idx < 0) return null
-
-  const updated: DailySuggestion = {
-    ...suggestions[idx],
-    recipeId: nextRecipe.id,
-    status: 'pending',
-    rejectionReason: undefined,
-  }
-  const next = [...suggestions]
-  next[idx] = updated
-  save(KEYS.suggestions, next)
-  return { ...updated, recipe: nextRecipe }
-}
-
-// Daily suggestion
+// =============================================================================
+// Daily suggestions
+// =============================================================================
 
 export function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-/** Kalenderdatum für „morgen“ (lokal wie ISO-Datum). */
 export function tomorrowStr(): string {
   const d = new Date()
   d.setDate(d.getDate() + 1)
   return d.toISOString().split('T')[0]
 }
 
-export function getTodaySuggestion(): DailySuggestion | null {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  return suggestions.find((s) => s.date === todayStr()) ?? null
+async function fetchSuggestions(userId: string): Promise<DailySuggestion[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: true })
+  if (error) throw error
+  return (data as SuggestionRow[] | null)?.map(mapSuggestion) ?? []
 }
 
-export function getSuggestionByDate(isoDate: string): DailySuggestion | null {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  const row = suggestions.find((s) => s.date === isoDate)
-  if (!row) return null
-  const recipe = getRecipe(row.recipeId)
-  return recipe ? { ...row, recipe } : null
+async function attachRecipe(s: DailySuggestion): Promise<DailySuggestion> {
+  if (!s.recipeId) return s
+  const recipe = await getRecipe(s.recipeId)
+  return recipe ? { ...s, recipe } : s
+}
+
+export async function getTodaySuggestion(): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', todayStr())
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return attachRecipe(mapSuggestion(data as SuggestionRow))
+}
+
+export async function getSuggestionByDate(isoDate: string): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', isoDate)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return attachRecipe(mapSuggestion(data as SuggestionRow))
 }
 
 /**
- * Liefert den Vorschlag für ein Datum; legt ihn bei Bedarf neu an (gleiche Logik wie bisher für „heute“).
+ * Liefert den Vorschlag für ein Datum; legt ihn bei Bedarf neu an.
  */
-export function getOrCreateSuggestionForDate(targetDate: string): DailySuggestion | null {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  const existing = suggestions.find((s) => s.date === targetDate)
-  if (existing) {
-    const recipe = getRecipe(existing.recipeId)
-    if (!recipe) return null
-    return { ...existing, recipe }
-  }
+export async function getOrCreateSuggestionForDate(
+  targetDate: string,
+): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const existing = await getSuggestionByDate(targetDate)
+  if (existing?.recipe) return existing
+  if (existing) return existing
 
-  const basePool = pickRecipesMatchingSignals(new Set())
+  const [recipes, profile, signals, suggestions] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+    fetchSuggestions(userId),
+  ])
+  if (!recipes.length) return null
+
+  const basePool = pickRecipesMatchingSignals(recipes, new Set(), signals, profile)
   if (!basePool.length) return null
 
   const recentIds = new Set(suggestions.slice(-7).map((s) => s.recipeId))
@@ -387,168 +586,266 @@ export function getOrCreateSuggestionForDate(targetDate: string): DailySuggestio
 
   const recipe = pool[Math.floor(Math.random() * pool.length)]!
 
-  const suggestion: DailySuggestion = {
-    id: crypto.randomUUID(),
-    date: targetDate,
-    recipeId: recipe.id,
-    recipe,
-    status: 'pending',
-  }
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .insert({
+      user_id: userId,
+      date: targetDate,
+      recipe_id: recipe.id,
+      status: 'pending',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
 
-  save(KEYS.suggestions, [...suggestions, suggestion])
-  return suggestion
+  return { ...mapSuggestion(data as SuggestionRow), recipe }
 }
 
-export function createTodaySuggestion(): DailySuggestion {
-  const existing = getTodaySuggestion()
-  if (existing) {
-    const recipe = getRecipe(existing.recipeId)
-    return recipe ? { ...existing, recipe } : existing
-  }
-
-  const created = getOrCreateSuggestionForDate(todayStr())
-  if (created) return created
-
-  return { id: crypto.randomUUID(), date: todayStr(), recipeId: '', status: 'pending' }
+export async function createTodaySuggestion(): Promise<DailySuggestion | null> {
+  return getOrCreateSuggestionForDate(todayStr())
 }
 
-export function updateSuggestionStatus(
+export async function updateSuggestionStatus(
   id: string,
   status: DailySuggestion['status'],
   rejectionReason?: string,
-) {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  const updated = suggestions.map((s) =>
-    s.id === id ? { ...s, status, rejectionReason } : s,
-  )
-  save(KEYS.suggestions, updated)
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('daily_suggestions')
+    .update({ status, rejection_reason: rejectionReason ?? null })
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function getAlternativeSuggestion(excludeId: string): Recipe | null {
-  return pickRecipeMatchingSignals(excludeId)
-}
-
-/**
- * Aktuelles Tagesgericht für morgen einplanen und für heute einen anderen Vorschlag wählen.
- */
-export function deferCurrentDayToTomorrowAndPickNewToday(): DailySuggestion | null {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
+/** Morgen-Vorschlag durch ein anderes aktives Rezept ersetzen. */
+export async function refreshTomorrowSuggestion(): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const tomorrow = tomorrowStr()
   const today = todayStr()
-  const tomorrow = tomorrowStr()
 
-  const todayIdx = suggestions.findIndex((s) => s.date === today)
-  if (todayIdx < 0) return null
+  const [recipes, profile, signals, suggestions] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+    fetchSuggestions(userId),
+  ])
 
-  const todayRow = suggestions[todayIdx]
-  const moveRecipeId = todayRow.recipeId
-  if (!moveRecipeId) return null
-
-  let next = [...suggestions]
-
-  const tomorrowIdx = next.findIndex((s) => s.date === tomorrow)
-  if (tomorrowIdx >= 0) {
-    next[tomorrowIdx] = {
-      ...next[tomorrowIdx],
-      recipeId: moveRecipeId,
-      status: 'pending',
-      rejectionReason: undefined,
-    }
-  } else {
-    next.push({
-      id: crypto.randomUUID(),
-      date: tomorrow,
-      recipeId: moveRecipeId,
-      status: 'pending',
-    })
-  }
-
-  const alt = getAlternativeSuggestion(moveRecipeId)
-  const newTodayId = alt?.id ?? moveRecipeId
-
-  const todayIdxFresh = next.findIndex((s) => s.date === today)
-  if (todayIdxFresh < 0) return null
-
-  next[todayIdxFresh] = {
-    ...next[todayIdxFresh],
-    recipeId: newTodayId,
-    status: 'pending',
-    rejectionReason: undefined,
-  }
-
-  save(KEYS.suggestions, next)
-
-  const recipe = getRecipe(newTodayId)
-  const row = next.find((s) => s.date === today)!
-  return recipe ? { ...row, recipe } : null
-}
-
-/** Morgen-Vorschlag durch ein anderes aktives Rezept ersetzen (bevorzugt ≠ heute & ≠ bisheriges Morgen). */
-export function refreshTomorrowSuggestion(): DailySuggestion | null {
-  const tomorrow = tomorrowStr()
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-
-  const tomorrowIdx = suggestions.findIndex((s) => s.date === tomorrow)
-  const todayRow = suggestions.find((s) => s.date === todayStr())
+  const todayRow = suggestions.find((s) => s.date === today)
+  const tomorrowRow = suggestions.find((s) => s.date === tomorrow)
 
   const exclude = new Set<string>()
   if (todayRow?.recipeId) exclude.add(todayRow.recipeId)
-  if (tomorrowIdx >= 0 && suggestions[tomorrowIdx].recipeId) {
-    exclude.add(suggestions[tomorrowIdx].recipeId)
-  }
+  if (tomorrowRow?.recipeId) exclude.add(tomorrowRow.recipeId)
 
-  let pool = pickRecipesMatchingSignals(exclude)
-  if (!pool.length && tomorrowIdx >= 0 && suggestions[tomorrowIdx].recipeId) {
-    pool = pickRecipesMatchingSignals(new Set([suggestions[tomorrowIdx].recipeId]))
+  let pool = pickRecipesMatchingSignals(recipes, exclude, signals, profile)
+  if (!pool.length && tomorrowRow?.recipeId) {
+    pool = pickRecipesMatchingSignals(recipes, new Set([tomorrowRow.recipeId]), signals, profile)
   }
   if (!pool.length) {
-    return getSuggestionByDate(tomorrow)
+    return tomorrowRow ? attachRecipe(tomorrowRow) : null
   }
 
   const recipe = pool[Math.floor(Math.random() * pool.length)]!
 
-  const updatedRow: DailySuggestion =
-    tomorrowIdx >= 0
-      ? {
-          ...suggestions[tomorrowIdx],
-          recipeId: recipe.id,
-          status: 'pending',
-          rejectionReason: undefined,
-        }
-      : {
-          id: crypto.randomUUID(),
-          date: tomorrow,
-          recipeId: recipe.id,
-          status: 'pending',
-        }
-
-  const next =
-    tomorrowIdx >= 0
-      ? suggestions.map((s, i) => (i === tomorrowIdx ? updatedRow : s))
-      : [...suggestions, updatedRow]
-
-  save(KEYS.suggestions, next)
-  return { ...updatedRow, recipe }
-}
-
-// Feedback
-
-export function getFeedback(): Feedback[] {
-  return load<Feedback[]>(KEYS.feedback, [])
-}
-
-export function saveFeedback(feedback: Omit<Feedback, 'id' | 'createdAt'>) {
-  const all = getFeedback()
-  const entry: Feedback = {
-    ...feedback,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+  const supabase = createClient()
+  if (tomorrowRow) {
+    const { data, error } = await supabase
+      .from('daily_suggestions')
+      .update({
+        recipe_id: recipe.id,
+        status: 'pending',
+        rejection_reason: null,
+      })
+      .eq('id', tomorrowRow.id)
+      .select('*')
+      .single()
+    if (error) throw error
+    return { ...mapSuggestion(data as SuggestionRow), recipe }
   }
-  save(KEYS.feedback, [...all, entry])
+
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .insert({
+      user_id: userId,
+      date: tomorrow,
+      recipe_id: recipe.id,
+      status: 'pending',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return { ...mapSuggestion(data as SuggestionRow), recipe }
 }
 
-export function getPastSuggestions(): DailySuggestion[] {
-  const suggestions = load<DailySuggestion[]>(KEYS.suggestions, [])
-  const recipes = getRecipes()
+/** Aktuelles Tagesgericht für morgen einplanen und für heute einen anderen Vorschlag wählen. */
+export async function deferCurrentDayToTomorrowAndPickNewToday(): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const today = todayStr()
+  const tomorrow = tomorrowStr()
+
+  const [recipes, profile, signals, suggestions] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+    fetchSuggestions(userId),
+  ])
+
+  const todayRow = suggestions.find((s) => s.date === today)
+  if (!todayRow?.recipeId) return null
+  const moveRecipeId = todayRow.recipeId
+
+  const supabase = createClient()
+  const tomorrowRow = suggestions.find((s) => s.date === tomorrow)
+  if (tomorrowRow) {
+    const { error } = await supabase
+      .from('daily_suggestions')
+      .update({
+        recipe_id: moveRecipeId,
+        status: 'pending',
+        rejection_reason: null,
+      })
+      .eq('id', tomorrowRow.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('daily_suggestions').insert({
+      user_id: userId,
+      date: tomorrow,
+      recipe_id: moveRecipeId,
+      status: 'pending',
+    })
+    if (error) throw error
+  }
+
+  const altPool = pickRecipesMatchingSignals(recipes, new Set([moveRecipeId]), signals, profile)
+  const newTodayRecipe = altPool.length
+    ? altPool[Math.floor(Math.random() * altPool.length)]!
+    : recipes.find((r) => r.id === moveRecipeId)
+  if (!newTodayRecipe) return null
+
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .update({
+      recipe_id: newTodayRecipe.id,
+      status: 'pending',
+      rejection_reason: null,
+    })
+    .eq('id', todayRow.id)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  return { ...mapSuggestion(data as SuggestionRow), recipe: newTodayRecipe }
+}
+
+// =============================================================================
+// „Etwas anderes" (Alternative-Survey + Signale)
+// =============================================================================
+
+export type ApplySomethingElseOptions = {
+  cravingChoiceIds?: string[]
+}
+
+export async function applySomethingElse(
+  suggestion: DailySuggestion,
+  recipe: Recipe,
+  reason: AlternativeSurveyReason,
+  options?: ApplySomethingElseOptions,
+): Promise<DailySuggestion | null> {
+  const userId = await requireUserId()
+  const cravingIds =
+    reason === 'specific_craving' ? (options?.cravingChoiceIds?.filter(Boolean) ?? []) : []
+  if (reason === 'specific_craving' && cravingIds.length === 0) return null
+
+  const [recipes, profile, prevSignals] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+  ])
+  const nextSignals = deriveRecommendationSignalsAfterReason(prevSignals, recipe, reason, profile)
+
+  let nextRecipe: Recipe | null = null
+  if (reason === 'specific_craving') {
+    nextRecipe = pickRecipeForSpecificCraving(
+      recipes,
+      recipe.id,
+      nextSignals,
+      profile,
+      cravingIds,
+    )
+  } else {
+    const pool = pickRecipesMatchingSignals(recipes, new Set([recipe.id]), nextSignals, profile)
+    if (!pool.length) return null
+    nextRecipe = pool[Math.floor(Math.random() * pool.length)]!
+  }
+  if (!nextRecipe) return null
+
+  const supabase = createClient()
+  const { error: surveyErr } = await supabase.from('alternative_surveys').insert({
+    user_id: userId,
+    suggestion_id: suggestion.id,
+    recipe_id: recipe.id,
+    reason,
+    recipe_time_minutes: recipe.timeMinutes,
+    recipe_ingredient_count: recipe.ingredientCount,
+    recipe_pan_count: recipe.panCount,
+    craving_choice_ids: cravingIds.length ? cravingIds : [],
+  })
+  if (surveyErr) throw surveyErr
+
+  await saveRecommendationSignals(nextSignals)
+
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .update({
+      recipe_id: nextRecipe.id,
+      status: 'pending',
+      rejection_reason: null,
+    })
+    .eq('id', suggestion.id)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  return { ...mapSuggestion(data as SuggestionRow), recipe: nextRecipe }
+}
+
+// =============================================================================
+// Feedback & History
+// =============================================================================
+
+export async function getFeedback(): Promise<Feedback[]> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as FeedbackRow[] | null)?.map(mapFeedback) ?? []
+}
+
+export async function saveFeedback(
+  feedback: Omit<Feedback, 'id' | 'createdAt'>,
+): Promise<void> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { error } = await supabase.from('feedback').insert({
+    user_id: userId,
+    suggestion_id: feedback.suggestionId,
+    recipe_id: feedback.recipeId,
+    would_cook_again: feedback.wouldCookAgain,
+    too_hard: feedback.tooHard,
+    too_long: feedback.tooLong,
+  })
+  if (error) throw error
+}
+
+export async function getPastSuggestions(): Promise<DailySuggestion[]> {
+  const userId = await requireUserId()
+  const [suggestions, recipes] = await Promise.all([fetchSuggestions(userId), getRecipes()])
   return suggestions
     .map((s) => ({ ...s, recipe: recipes.find((r) => r.id === s.recipeId) }))
     .sort((a, b) => b.date.localeCompare(a.date))

@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   title: 'Rett:ich',
   description: 'Dein tägliches Küchen-Navi',
   applicationName: 'Rett:ich',
-  themeColor: '#ea580c',
   appleWebApp: {
     capable: true,
     title: 'Rett:ich',
@@ -23,11 +22,12 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#ea580c',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="de" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   )

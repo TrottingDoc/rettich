@@ -21,6 +21,38 @@ type CookTimerState = {
   label: string
 }
 
+function getStepTimer(
+  recipe: Recipe,
+  stepIndex: number,
+  prev: CookTimerState | null,
+): CookTimerState | null {
+  const currentStep = recipe.steps[stepIndex]
+  const dur =
+    currentStep.durationSeconds != null && currentStep.durationSeconds > 0
+      ? currentStep.durationSeconds
+      : null
+
+  if (prev?.running && prev.remaining > 0) return prev
+  if (prev && prev.remaining > 0 && prev.remaining < prev.initialSeconds) return prev
+  if (dur) {
+    const idleAtFull =
+      !!prev && !prev.running && prev.remaining === prev.initialSeconds && prev.remaining > 0
+    const completed = !!prev && prev.remaining === 0 && !prev.running
+    const noPrev = !prev
+    if (noPrev || completed || idleAtFull) {
+      return {
+        remaining: dur,
+        initialSeconds: dur,
+        running: false,
+        label: truncateTimerLabel(currentStep.text),
+      }
+    }
+  }
+  if (prev && prev.remaining > 0) return prev
+  if (prev && prev.remaining === 0) return prev
+  return null
+}
+
 function TimerBar({
   remaining,
   running,
@@ -78,7 +110,7 @@ function FeedbackDialog({
       <div className="bg-white w-full rounded-t-2xl p-6 flex flex-col gap-5">
         <div>
           <h3 className="text-xl font-bold text-stone-900">Wie war es?</h3>
-          <p className="text-stone-500 text-sm mt-1">Nur 2 Taps – das war's.</p>
+          <p className="text-stone-500 text-sm mt-1">Nur 2 Taps – das war&apos;s.</p>
         </div>
 
         <div>
@@ -157,41 +189,22 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
   const [cookTimer, setCookTimer] = useState<CookTimerState | null>(null)
 
   useEffect(() => {
-    const r = getRecipe(id)
-    if (r) setRecipe(r)
-  }, [id])
-
-  /** Keep one timer across steps: nur zurücksetzen, wenn die aktuelle Schritt-Dauer den Timer idle definiert oder abgelaufen ist – nicht beim Weiter-Tap während der läuft. */
-  useEffect(() => {
-    if (!recipe) return
-    const currentStep = recipe.steps[stepIndex]
-    const dur =
-      currentStep.durationSeconds != null && currentStep.durationSeconds > 0
-        ? currentStep.durationSeconds
-        : null
-
-    setCookTimer((prev) => {
-      if (prev?.running && prev.remaining > 0) return prev
-      if (prev && prev.remaining > 0 && prev.remaining < prev.initialSeconds) return prev
-      if (dur) {
-        const idleAtFull =
-          !!prev && !prev.running && prev.remaining === prev.initialSeconds && prev.remaining > 0
-        const completed = !!prev && prev.remaining === 0 && !prev.running
-        const noPrev = !prev
-        if (noPrev || completed || idleAtFull) {
-          return {
-            remaining: dur,
-            initialSeconds: dur,
-            running: false,
-            label: truncateTimerLabel(currentStep.text),
-          }
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await getRecipe(id)
+        if (!cancelled && r) {
+          setRecipe(r)
+          setCookTimer(getStepTimer(r, 0, null))
         }
+      } catch (err) {
+        console.error(err)
       }
-      if (prev && prev.remaining > 0) return prev
-      if (prev && prev.remaining === 0) return prev
-      return null
-    })
-  }, [recipe, stepIndex])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id])
 
   useEffect(() => {
     if (!cookTimer?.running || cookTimer.remaining <= 0) return
@@ -212,17 +225,30 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
     setCookTimer((c) => (c ? { ...c, running: !c.running } : c))
   }, [])
 
-  function submitFeedback(wouldCookAgain: boolean, tooHard: boolean, tooLong: boolean) {
-    const suggestion = getTodaySuggestion()
-    if (suggestion) {
-      saveFeedback({
-        suggestionId: suggestion.id,
-        recipeId: id,
-        wouldCookAgain,
-        tooHard,
-        tooLong,
-      })
-      updateSuggestionStatus(suggestion.id, 'completed')
+  const goToStep = useCallback(
+    (nextIndex: number) => {
+      if (!recipe) return
+      setStepIndex(nextIndex)
+      setCookTimer((prev) => getStepTimer(recipe, nextIndex, prev))
+    },
+    [recipe],
+  )
+
+  async function submitFeedback(wouldCookAgain: boolean, tooHard: boolean, tooLong: boolean) {
+    try {
+      const suggestion = await getTodaySuggestion()
+      if (suggestion) {
+        await saveFeedback({
+          suggestionId: suggestion.id,
+          recipeId: id,
+          wouldCookAgain,
+          tooHard,
+          tooLong,
+        })
+        await updateSuggestionStatus(suggestion.id, 'completed')
+      }
+    } catch (err) {
+      console.error(err)
     }
     router.push('/')
   }
@@ -368,7 +394,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
       <div className="px-4 pb-6 flex gap-3">
         {stepIndex > 0 && (
           <button
-            onClick={() => setStepIndex((i) => i - 1)}
+            onClick={() => goToStep(stepIndex - 1)}
             className="flex-1 border border-stone-300 text-stone-700 font-semibold py-4 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
           >
             Zurück
@@ -377,7 +403,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
         <button
           onClick={() => {
             if (stepIndex < totalSteps - 1) {
-              setStepIndex((i) => i + 1)
+              goToStep(stepIndex + 1)
             } else {
               setCookTimer(null)
               setDone(true)

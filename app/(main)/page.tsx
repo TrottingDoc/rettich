@@ -64,9 +64,20 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const s = createTodaySuggestion()
-    setSuggestion(s)
-    setLoading(false)
+    let cancelled = false
+    void (async () => {
+      try {
+        const s = await createTodaySuggestion()
+        if (!cancelled) setSuggestion(s)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function pinShoppingListToPreferences() {
@@ -92,22 +103,27 @@ export default function TodayPage() {
     setShowAlternativeSurvey(true)
   }
 
-  function confirmSomethingElse(
+  async function confirmSomethingElse(
     reason: AlternativeSurveyReason,
     options?: ApplySomethingElseOptions,
   ) {
     if (!suggestion?.recipe) return
     setAlternativeSurveyHint(null)
-    const next = applySomethingElse(suggestion, suggestion.recipe, reason, options)
-    setShowAlternativeSurvey(false)
-    setAlternativeSurveyStep('reasons')
-    setSelectedCravingIds([])
-    if (next) {
-      setSuggestion(next)
-    } else {
-      setAlternativeSurveyHint(
-        'Gerade passt kein anderes Rezept zu deinen Grenzen. Versuche es später oder lockere die Vorlieben.',
-      )
+    try {
+      const next = await applySomethingElse(suggestion, suggestion.recipe, reason, options)
+      setShowAlternativeSurvey(false)
+      setAlternativeSurveyStep('reasons')
+      setSelectedCravingIds([])
+      if (next) {
+        setSuggestion(next)
+      } else {
+        setAlternativeSurveyHint(
+          'Gerade passt kein anderes Rezept zu deinen Grenzen. Versuche es später oder lockere die Vorlieben.',
+        )
+      }
+    } catch (err) {
+      console.error(err)
+      setAlternativeSurveyHint('Beim Speichern ist etwas schiefgelaufen. Bitte erneut versuchen.')
     }
   }
 
@@ -119,7 +135,7 @@ export default function TodayPage() {
 
   function confirmSpecificCraving() {
     if (!selectedCravingIds.length) return
-    confirmSomethingElse('specific_craving', { cravingChoiceIds: selectedCravingIds })
+    void confirmSomethingElse('specific_craving', { cravingChoiceIds: selectedCravingIds })
   }
 
   if (loading) {
@@ -360,7 +376,7 @@ export default function TodayPage() {
                     onClick={() =>
                       reason === 'specific_craving'
                         ? setAlternativeSurveyStep('cravings')
-                        : confirmSomethingElse(reason)
+                        : void confirmSomethingElse(reason)
                     }
                     className="w-full text-left text-base font-medium text-stone-700 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 active:scale-[0.98] transition-all"
                   >

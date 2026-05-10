@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Plus, List } from 'lucide-react'
+import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -34,6 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Plus size={16} />
             Neues Rezept
           </Link>
+          <LogoutButton />
         </div>
       </header>
       <main className="max-w-5xl mx-auto px-6 py-8">{children}</main>
