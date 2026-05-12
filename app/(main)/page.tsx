@@ -1,10 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
-  BookOpen,
   ChefHat,
   ChevronLeft,
   ChevronRight,
@@ -13,18 +11,18 @@ import {
   Flame,
   RefreshCw,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
   X,
 } from 'lucide-react'
 import { cn, formatIngredientLine } from '@/lib/utils'
+import CheckableIngredientList from '@/components/CheckableIngredientList'
+import RecipeImage from '@/components/RecipeImage'
+import { RESET_HOME_EVENT } from '@/components/RettMichNavLink'
 import {
   applySomethingElse,
   createTodaySuggestion,
-  createTodaySuggestionForCraving,
-  getRecipeCollection,
+  getRecipesForCraving,
   type ApplySomethingElseOptions,
-  type RecipeCollectionItem,
+  type CravingRecipeMatch,
 } from '@/lib/store'
 import { POPULAR_CRAVING_CHOICES } from '@/lib/craving-options'
 import type { AlternativeSurveyReason, DailySuggestion, Recipe } from '@/lib/types'
@@ -35,7 +33,7 @@ const CHOPPING_LABEL: Record<string, string> = {
   lots: 'Viel Schneiden',
 }
 
-type ViewMode = 'menu' | 'suggestion' | 'cravings' | 'collection'
+type ViewMode = 'menu' | 'suggestion' | 'cravings'
 
 function ComplexityBadge({ recipe }: { recipe: Recipe }) {
   const items = [
@@ -76,7 +74,7 @@ function BackButton({ onClick }: { onClick: () => void }) {
 export default function TodayPage() {
   const [mode, setMode] = useState<ViewMode>('menu')
   const [suggestion, setSuggestion] = useState<DailySuggestion | null>(null)
-  const [collection, setCollection] = useState<RecipeCollectionItem[]>([])
+  const [cravingMatches, setCravingMatches] = useState<CravingRecipeMatch[]>([])
   const [selectedCravingIds, setSelectedCravingIds] = useState<string[]>([])
   const [showAlternativeSurvey, setShowAlternativeSurvey] = useState(false)
   const [alternativeSurveyStep, setAlternativeSurveyStep] = useState<'reasons' | 'cravings'>(
@@ -104,35 +102,19 @@ export default function TodayPage() {
     }
   }
 
-  async function suggestForCraving() {
+  async function showRecipesForCraving() {
     if (!selectedCravingIds.length) return
     setLoading(true)
     setAlternativeSurveyHint(null)
     try {
-      const next = await createTodaySuggestionForCraving(selectedCravingIds)
-      setSuggestion(next)
-      setSelectedCravingIds([])
-      setMode('suggestion')
-      if (!next) {
+      const matches = await getRecipesForCraving(selectedCravingIds)
+      setCravingMatches(matches)
+      if (!matches.length) {
         setAlternativeSurveyHint('Dazu finde ich gerade kein passendes Rezept.')
       }
     } catch (err) {
       console.error(err)
       setAlternativeSurveyHint('Beim Vorschlagen ist etwas schiefgelaufen. Bitte erneut versuchen.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function openCollection() {
-    setLoading(true)
-    setAlternativeSurveyHint(null)
-    try {
-      setCollection(await getRecipeCollection())
-      setMode('collection')
-    } catch (err) {
-      console.error(err)
-      setAlternativeSurveyHint('Die Rezeptsammlung konnte nicht geladen werden.')
     } finally {
       setLoading(false)
     }
@@ -186,16 +168,24 @@ export default function TodayPage() {
   }
 
   function toggleCravingChoice(id: string) {
+    setCravingMatches([])
+    setAlternativeSurveyHint(null)
     setSelectedCravingIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
 
-  function resetToMenu() {
+  const resetToMenu = useCallback(() => {
     setMode('menu')
     setAlternativeSurveyHint(null)
     setSelectedCravingIds([])
-  }
+    setCravingMatches([])
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener(RESET_HOME_EVENT, resetToMenu)
+    return () => window.removeEventListener(RESET_HOME_EVENT, resetToMenu)
+  }, [resetToMenu])
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -203,7 +193,7 @@ export default function TodayPage() {
         <p className="text-sm text-stone-500 font-medium uppercase tracking-wide">
           {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        <h1 className="text-2xl font-bold text-stone-900 mt-1">Heute</h1>
+        <h1 className="text-2xl font-bold text-stone-900 mt-1">Rett:mich</h1>
       </div>
 
       <div className="px-4 flex flex-col gap-4 flex-1 pb-6">
@@ -235,6 +225,7 @@ export default function TodayPage() {
               type="button"
               onClick={() => {
                 setSelectedCravingIds([])
+                setCravingMatches([])
                 setMode('cravings')
               }}
               className="bg-white rounded-2xl border border-stone-200 p-5 text-left shadow-sm hover:border-orange-300 active:scale-[0.99] transition-all"
@@ -249,28 +240,6 @@ export default function TodayPage() {
                   </span>
                   <span className="block text-sm text-stone-500 mt-0.5">
                     …eine bestimmte Zutat oder Art von Gericht.
-                  </span>
-                </span>
-                <ChevronRight size={20} className="text-stone-300" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void openCollection()}
-              disabled={loading}
-              className="bg-white rounded-2xl border border-stone-200 p-5 text-left shadow-sm hover:border-orange-300 active:scale-[0.99] transition-all disabled:opacity-60"
-            >
-              <span className="flex items-center gap-3">
-                <span className="w-11 h-11 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center">
-                  <BookOpen size={22} />
-                </span>
-                <span className="flex-1">
-                  <span className="block text-lg font-bold text-stone-900">
-                    Meine Rezeptsammlung anzeigen
-                  </span>
-                  <span className="block text-sm text-stone-500 mt-0.5">
-                    Alle Rezepte, die in Rett:ich gespeichert sind.
                   </span>
                 </span>
                 <ChevronRight size={20} className="text-stone-300" />
@@ -315,7 +284,7 @@ export default function TodayPage() {
             <button
               type="button"
               disabled={loading || selectedCravingIds.length === 0}
-              onClick={() => void suggestForCraving()}
+              onClick={() => void showRecipesForCraving()}
               className={cn(
                 'w-full font-semibold text-base py-3.5 rounded-xl transition-all',
                 loading || selectedCravingIds.length === 0
@@ -323,10 +292,55 @@ export default function TodayPage() {
                   : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-[0.98]',
               )}
             >
-              {loading ? 'Suche Rezept…' : 'Passendes Rezept vorschlagen'}
+              {loading ? 'Suche Rezepte…' : 'Passende Rezepte anzeigen'}
             </button>
             {alternativeSurveyHint && (
               <p className="text-sm text-amber-800 text-center px-1">{alternativeSurveyHint}</p>
+            )}
+            {cravingMatches.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <p className="text-sm font-semibold text-stone-700">
+                  {cravingMatches.length} passende Rezepte
+                </p>
+                {cravingMatches.map((match) => (
+                  <div
+                    key={match.id}
+                    className="rounded-xl border border-stone-200 bg-stone-50/70 p-4 flex flex-col gap-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-stone-900 text-base leading-snug">
+                          {match.title}
+                        </h3>
+                        <p className="text-sm text-stone-500 mt-1 line-clamp-2">
+                          {match.description}
+                        </p>
+                      </div>
+                      <span className="flex items-center gap-1 text-xs text-stone-500 shrink-0">
+                        <Clock size={13} />
+                        {match.timeMinutes} Min.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {match.tags.slice(0, 4).map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-xs text-stone-600 bg-white border border-stone-200 rounded-full px-2.5 py-1"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <Link
+                      href={`/kochen/${match.id}`}
+                      className="flex items-center gap-1 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
+                    >
+                      <ChefHat size={14} />
+                      Rezept kochen
+                    </Link>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -363,14 +377,7 @@ export default function TodayPage() {
                     <ComplexityBadge recipe={recipe} />
 
                     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-200/80">
-                      <Image
-                        src={recipe.imageUrl?.trim() ? recipe.imageUrl.trim() : '/image_rettich.png'}
-                        alt={recipe.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 448px) 100vw, 400px"
-                        priority
-                      />
+                      <RecipeImage key={recipe.id} recipe={recipe} priority />
                     </div>
                   </div>
 
@@ -411,62 +418,6 @@ export default function TodayPage() {
           </>
         )}
 
-        {mode === 'collection' && (
-          <div className="flex flex-col gap-3">
-            <BackButton onClick={resetToMenu} />
-            <div>
-              <h2 className="text-xl font-bold text-stone-900">Meine Rezeptsammlung</h2>
-              <p className="text-stone-500 text-sm mt-1">
-                Alle aktiven Rezepte mit deinen bisherigen Markern.
-              </p>
-            </div>
-            {collection.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl border border-stone-200 p-4 flex flex-col gap-3 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-stone-900 text-base leading-snug">{item.title}</h3>
-                    <p className="text-sm text-stone-500 mt-1 line-clamp-2">{item.description}</p>
-                  </div>
-                  <span className="flex items-center gap-1 text-xs text-stone-500 shrink-0">
-                    <Clock size={13} />
-                    {item.timeMinutes} Min.
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {item.cookedBefore && (
-                    <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-                      <ThumbsUp size={12} />
-                      Schon gekocht
-                    </span>
-                  )}
-                  {item.rejectedBefore && (
-                    <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2.5 py-1">
-                      <ThumbsDown size={12} />
-                      Nicht wieder kochen
-                    </span>
-                  )}
-                  {!item.cookedBefore && !item.rejectedBefore && (
-                    <span className="text-xs text-stone-500 bg-stone-100 rounded-full px-2.5 py-1">
-                      Noch offen
-                    </span>
-                  )}
-                </div>
-                <Link
-                  href={`/kochen/${item.id}`}
-                  className="text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
-                >
-                  Rezept kochen →
-                </Link>
-              </div>
-            ))}
-            {collection.length === 0 && (
-              <p className="text-stone-500 text-center py-8">Noch keine aktiven Rezepte vorhanden.</p>
-            )}
-          </div>
-        )}
       </div>
 
       {showIngredientsModal && recipe && (
@@ -498,14 +449,11 @@ export default function TodayPage() {
                 <X size={22} />
               </button>
             </div>
-            <ul className="overflow-y-auto flex-1 min-h-0 space-y-2.5 border border-stone-200 rounded-xl px-4 py-3 bg-stone-50/80">
-              {recipe.ingredients.map((ing, i) => (
-                <li key={i} className="flex items-start gap-3 text-stone-800 text-base leading-snug">
-                  <span className="mt-2 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                  <span>{formatIngredientLine(ing)}</span>
-                </li>
-              ))}
-            </ul>
+            <CheckableIngredientList
+              listKey={`recipe:${recipe.id}:ingredients`}
+              ingredients={recipe.ingredients}
+              className="overflow-y-auto flex-1 min-h-0 space-y-2.5 border border-stone-200 rounded-xl px-4 py-3 bg-stone-50/80"
+            />
             {shoppingListFeedback === 'saved' && (
               <p className="text-sm text-green-700 font-medium">
                 Liste in die Zwischenablage kopiert – unter „Einkaufen“ siehst du sie auch.

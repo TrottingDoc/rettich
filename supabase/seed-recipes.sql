@@ -17,7 +17,7 @@ insert into recipes (
   10, 1, 'none',
   true, false, false, 4, 1,
   false,
-  '{}',
+  '{vegetarisch,frühstück,schnell,ei}',
   '[
     {"name":"Eier","amount":"2","unit":"Stück"},
     {"name":"Butter","amount":"1","unit":"TL"},
@@ -47,7 +47,7 @@ insert into recipes (
   15, 2, 'none',
   true, false, false, 4, 1,
   true,
-  '{vegetarisch}',
+  '{vegetarisch,pasta,käse,butter}',
   '[
     {"name":"Nudeln","amount":"200","unit":"g"},
     {"name":"Butter","amount":"2","unit":"EL"},
@@ -79,7 +79,7 @@ insert into recipes (
   10, 2, 'none',
   true, false, false, 2, 1,
   false,
-  '{vegetarisch,weiche-speisen}',
+  '{vegetarisch,weiche-speisen,suppe,tomate}',
   '[
     {"name":"Tomatensuppe (Dose oder Tetra Pak)","amount":"1","unit":"Dose"},
     {"name":"Wasser oder Milch","amount":"1","unit":"Dose (zum Auffüllen)"}
@@ -103,7 +103,7 @@ insert into recipes (
   5, 1, 'basic',
   false, false, false, 4, 0,
   true,
-  '{vegetarisch,kein-herd}',
+  '{vegetarisch,kein-herd,brot,käse,tomate}',
   '[
     {"name":"Brot","amount":"2","unit":"Scheiben"},
     {"name":"Butter","amount":"1","unit":"EL"},
@@ -130,7 +130,7 @@ insert into recipes (
   10, 1, 'none',
   true, false, false, 4, 1,
   false,
-  '{vegetarisch,weiche-speisen,frühstück}',
+  '{vegetarisch,weiche-speisen,frühstück,hafer,milch}',
   '[
     {"name":"Haferflocken","amount":"50","unit":"g"},
     {"name":"Milch oder Wasser","amount":"200","unit":"ml"},
@@ -159,7 +159,7 @@ insert into recipes (
   25, 2, 'basic',
   true, false, false, 7, 2,
   false,
-  '{vegetarisch,schnell}',
+  '{vegetarisch,schnell,pasta,tomate}',
   '[
     {"name":"Nudeln","amount":"200","unit":"g"},
     {"name":"Olivenöl","amount":"1","unit":"EL"},
@@ -200,7 +200,7 @@ insert into recipes (
   15, 4, 'basic',
   false, false, false, 17, 0,
   true,
-  '{vegetarisch,kein-herd,schnell}',
+  '{vegetarisch,kein-herd,schnell,sauce,tomate}',
   '[
     {"name":"Getrocknete Tomaten, rehydriert","amount":"1","unit":"Tasse"},
     {"name":"Pinienkerne, geröstet","amount":"1","unit":"EL"},
@@ -250,7 +250,7 @@ insert into recipes (
   90, 4, 'basic',
   true, true, true, 16, 2,
   true,
-  '{auflauf,ofengericht}',
+  '{auflauf,ofengericht,pasta}',
   '[
     {"name":"Zwiebel","amount":"1","unit":"Stück"},
     {"name":"Speckwürfel","amount":"1","unit":"Handvoll"},
@@ -428,7 +428,7 @@ insert into recipes (
   60, 4, 'basic',
   true, false, true, 14, 2,
   false,
-  '{risotto}',
+  '{risotto,reis}',
   '[
     {"name":"Zwiebel","amount":"1","unit":"große"},
     {"name":"Pilze","amount":"1","unit":"Schale"},
@@ -531,7 +531,7 @@ insert into recipes (
   30, 2, 'basic',
   false, true, false, 7, 0,
   true,
-  '{ofengericht}',
+  '{ofengericht,pizza}',
   '[
     {"name":"Pizzateig aus der Tiefkühlung","amount":"1","unit":"Packung"},
     {"name":"Pizza-Sauce","amount":"1","unit":"Dose"},
@@ -571,7 +571,7 @@ insert into recipes (
   40, 2, 'basic',
   true, false, false, 9, 2,
   false,
-  '{curry}',
+  '{curry,hähnchen}',
   '[
     {"name":"Jasminreis oder Basmatireis","amount":"150","unit":"g"},
     {"name":"Gelbe Thai-Currypaste","amount":"2","unit":"EL"},
@@ -655,7 +655,7 @@ insert into recipes (
   15, 2, 'basic',
   false, false, false, 7, 0,
   true,
-  '{salat,kein-herd,schnell,vegetarisch}',
+  '{salat,kein-herd,schnell,vegetarisch,gemüse}',
   '[
     {"name":"Gurke","amount":"1","unit":"Stück"},
     {"name":"Tomaten","amount":"2","unit":"Stück"},
@@ -725,7 +725,7 @@ insert into recipes (
   15, 2, 'basic',
   false, false, false, 7, 0,
   true,
-  '{salat,kein-herd,schnell,vegetarisch}',
+  '{salat,kein-herd,schnell,vegetarisch,gemüse}',
   '[
     {"name":"Rucola oder gemischter Blattsalat","amount":"2","unit":"Handvoll"},
     {"name":"Apfel","amount":"1","unit":"Stück"},
@@ -761,7 +761,7 @@ insert into recipes (
   55, 2, 'basic',
   true, false, true, 19, 3,
   false,
-  '{vegetarisch}',
+  '{vegetarisch,gemüse}',
   '[
     {"name":"Knollensellerie","amount":"1/2","unit":"Knolle"},
     {"name":"Mehl","amount":"4","unit":"EL"},
@@ -823,7 +823,7 @@ insert into recipes (
   35, 4, 'basic',
   true, false, true, 17, 2,
   false,
-  '{schnell}',
+  '{schnell,hähnchen,pasta}',
   '[
     {"name":"3-Minuten-Nudeln","amount":"5","unit":"Päckchen"},
     {"name":"Rote Paprika","amount":"1","unit":"Stück"},
@@ -876,7 +876,7 @@ insert into recipes (
   30, 4, 'basic',
   true, false, true, 12, 1,
   false,
-  '{schnell}',
+  '{schnell,hähnchen}',
   '[
     {"name":"Hähnchenbrustfilets","amount":"2","unit":"Stück"},
     {"name":"Salz","amount":"2","unit":"TL"},
@@ -926,7 +926,7 @@ insert into recipes (
   40, 2, 'basic',
   true, true, true, 15, 2,
   false,
-  '{vegetarisch,vegan}',
+  '{vegetarisch,vegan,gemüse}',
   '[
     {"name":"Blumenkohlröschen","amount":"500–600","unit":"g"},
     {"name":"Rapsöl","amount":"2","unit":"EL"},
@@ -978,7 +978,7 @@ insert into recipes (
   105, 8, 'lots',
   true, true, true, 14, 3,
   false,
-  '{auflauf,party}',
+  '{auflauf,party,kartoffel}',
   '[
     {"name":"Kartoffeln","amount":"6","unit":"Stück"},
     {"name":"Parmesan, gerieben","amount":"220","unit":"g"},

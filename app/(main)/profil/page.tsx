@@ -6,9 +6,7 @@ import { getProfile, saveProfile } from '@/lib/store'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { ALLERGEN_OPTIONS, NOTIFICATION_HOURS } from '@/lib/profile-options'
-
-const EQUIPMENT_OPTIONS = ['Herd', 'Backofen', 'Mikrowelle', 'Toaster', 'Wasserkocher', 'Mixer']
+import { ALLERGEN_OPTIONS } from '@/lib/profile-options'
 
 function Toggle({
   label,
@@ -71,15 +69,6 @@ export default function ProfilPage() {
     }
   }
 
-  function toggleEquipment(item: string) {
-    if (!profile) return
-    const has = profile.equipment.includes(item)
-    setProfile({
-      ...profile,
-      equipment: has ? profile.equipment.filter((e) => e !== item) : [...profile.equipment, item],
-    })
-  }
-
   function toggleAllergen(id: string) {
     if (!profile) return
     const has = profile.allergies.includes(id)
@@ -106,54 +95,6 @@ export default function ProfilPage() {
         </div>
       </div>
 
-      {/* Zeit */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          So lange darf das Kochen dauern
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {[10, 15, 20, 30, 45, 60].map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setProfile({ ...profile, maxTimeMinutes: t })}
-              className={cn(
-                'px-4 py-2 rounded-full border text-base font-medium transition-all active:scale-95',
-                profile.maxTimeMinutes === t
-                  ? 'bg-orange-600 text-white border-orange-600'
-                  : 'border-stone-300 text-stone-600 hover:border-orange-400',
-              )}
-            >
-              {t} Min.
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Portionen */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Für so viele Leute koche ich
-        </h2>
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setProfile({ ...profile, portions: Math.max(1, profile.portions - 1) })}
-            className="w-12 h-12 rounded-full border-2 border-stone-300 text-xl font-bold text-stone-700 hover:border-orange-500 transition-colors active:scale-95"
-          >
-            −
-          </button>
-          <span className="text-3xl font-bold text-stone-900 w-10 text-center">{profile.portions}</span>
-          <button
-            type="button"
-            onClick={() => setProfile({ ...profile, portions: Math.min(8, profile.portions + 1) })}
-            className="w-12 h-12 rounded-full border-2 border-stone-300 text-xl font-bold text-stone-700 hover:border-orange-500 transition-colors active:scale-95"
-          >
-            +
-          </button>
-        </div>
-      </div>
-
       {/* Allergene / Vermeiden */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
         <div>
@@ -172,47 +113,6 @@ export default function ProfilPage() {
               active={profile.allergies.includes(id)}
               onClick={() => toggleAllergen(id)}
             />
-          ))}
-        </div>
-      </div>
-
-      {/* Geräte */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Das würde ich verwenden
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {EQUIPMENT_OPTIONS.map((item) => (
-            <Toggle
-              key={item}
-              label={item}
-              active={profile.equipment.includes(item)}
-              onClick={() => toggleEquipment(item)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Vorschlagszeit */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 flex flex-col gap-4">
-        <h2 className="text-base font-semibold text-stone-800 leading-snug">
-          Schick mir einen täglichen Vorschlag um:
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {NOTIFICATION_HOURS.map((h) => (
-            <button
-              key={h}
-              type="button"
-              onClick={() => setProfile({ ...profile, notificationHour: h })}
-              className={cn(
-                'px-4 py-2 rounded-full border text-base font-medium transition-all active:scale-95',
-                profile.notificationHour === h
-                  ? 'bg-orange-600 text-white border-orange-600'
-                  : 'border-stone-300 text-stone-600 hover:border-orange-400',
-              )}
-            >
-              {h}:00 Uhr
-            </button>
           ))}
         </div>
       </div>

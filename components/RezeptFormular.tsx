@@ -7,7 +7,34 @@ import { saveRecipe } from '@/lib/store'
 import type { Recipe, Ingredient, Step, Substitution, Fix, Chopping } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-const TAGS = ['vegetarisch', 'vegan', 'weiche-speisen', 'kein-herd', 'frühstück', 'schnell', 'low-salt']
+const TAGS = [
+  'vegetarisch',
+  'vegan',
+  'schnell',
+  'kein-herd',
+  'weiche-speisen',
+  'frühstück',
+  'ei',
+  'pasta',
+  'tomate',
+  'käse',
+  'brot',
+  'butter',
+  'hafer',
+  'milch',
+  'reis',
+  'kartoffel',
+  'hähnchen',
+  'fisch',
+  'salat',
+  'dressing',
+  'auflauf',
+  'ofengericht',
+  'curry',
+  'sauce',
+  'party',
+  'low-salt',
+]
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="block text-sm font-semibold text-stone-700 mb-1.5">{children}</label>
@@ -77,7 +104,7 @@ const EMPTY_RECIPE: Omit<Recipe, 'id' | 'createdAt'> = {
   canWalkAway: false,
   tags: [],
   ingredients: [{ name: '', amount: '', unit: '' }],
-  steps: [{ text: '', durationSeconds: undefined, checkText: '', isStopPoint: false }],
+  steps: [{ text: '', ingredients: [], durationSeconds: undefined, checkText: '', isStopPoint: false }],
   substitutions: [],
   fixes: [],
   isActive: true,
@@ -113,13 +140,50 @@ export default function RezeptFormular({ recipe }: { recipe?: Recipe }) {
   }
 
   function addStep() {
-    update('steps', [...form.steps, { text: '', durationSeconds: undefined, checkText: '', isStopPoint: false }])
+    update('steps', [
+      ...form.steps,
+      { text: '', ingredients: [], durationSeconds: undefined, checkText: '', isStopPoint: false },
+    ])
   }
 
-  function updateStep(i: number, field: keyof Step, value: string | number | boolean | undefined) {
+  function updateStep(
+    i: number,
+    field: keyof Step,
+    value: string | number | boolean | Ingredient[] | undefined,
+  ) {
     update(
       'steps',
       form.steps.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)),
+    )
+  }
+
+  function addStepIngredient(stepIndex: number) {
+    const step = form.steps[stepIndex]
+    updateStep(stepIndex, 'ingredients', [
+      ...(step.ingredients ?? []),
+      { name: '', amount: '', unit: '' },
+    ])
+  }
+
+  function updateStepIngredient(
+    stepIndex: number,
+    ingredientIndex: number,
+    field: keyof Ingredient,
+    value: string,
+  ) {
+    const step = form.steps[stepIndex]
+    const updated = (step.ingredients ?? []).map((ing, idx) =>
+      idx === ingredientIndex ? { ...ing, [field]: value } : ing,
+    )
+    updateStep(stepIndex, 'ingredients', updated)
+  }
+
+  function removeStepIngredient(stepIndex: number, ingredientIndex: number) {
+    const step = form.steps[stepIndex]
+    updateStep(
+      stepIndex,
+      'ingredients',
+      (step.ingredients ?? []).filter((_, idx) => idx !== ingredientIndex),
     )
   }
 
@@ -356,6 +420,50 @@ export default function RezeptFormular({ recipe }: { recipe?: Recipe }) {
                 placeholder="Beschreibe diesen Schritt klar und einfach…"
                 rows={2}
               />
+              <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3 flex flex-col gap-2">
+                <div>
+                  <FieldLabel>Zutaten für diesen Schritt</FieldLabel>
+                  <p className="text-xs text-stone-500 -mt-1 mb-2">
+                    Nur die Zutaten und Mengen, die in diesem Schritt wirklich gebraucht werden.
+                  </p>
+                </div>
+                {(step.ingredients ?? []).map((ing, ingredientIndex) => (
+                  <div key={ingredientIndex} className="flex gap-2 items-start">
+                    <Input
+                      value={ing.amount}
+                      onChange={(v) => updateStepIngredient(i, ingredientIndex, 'amount', v)}
+                      placeholder="Menge"
+                      className="w-20 shrink-0 bg-white"
+                    />
+                    <Input
+                      value={ing.unit ?? ''}
+                      onChange={(v) => updateStepIngredient(i, ingredientIndex, 'unit', v)}
+                      placeholder="Einheit"
+                      className="w-24 shrink-0 bg-white"
+                    />
+                    <Input
+                      value={ing.name}
+                      onChange={(v) => updateStepIngredient(i, ingredientIndex, 'name', v)}
+                      placeholder="Zutat"
+                      className="flex-1 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeStepIngredient(i, ingredientIndex)}
+                      className="p-2.5 text-stone-400 hover:text-red-500 transition-colors shrink-0"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addStepIngredient(i)}
+                  className="flex items-center gap-2 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+                >
+                  <Plus size={16} /> Schritt-Zutat hinzufügen
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <FieldLabel>Timer (Sekunden, optional)</FieldLabel>

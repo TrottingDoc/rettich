@@ -85,7 +85,7 @@ export default function VerlaufPage() {
               </div>
 
               <Link
-                href={`/kochen/${recipe.id}`}
+                href={`/kochen/${recipe.id}?preview=1`}
                 className="flex items-center gap-1 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
               >
                 <ChefHat size={14} />

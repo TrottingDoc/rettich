@@ -14,7 +14,11 @@ Fill `.env.local` with the values from your Supabase project:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+UNSPLASH_ACCESS_KEY=your-unsplash-access-key
 ```
+
+`UNSPLASH_ACCESS_KEY` is optional. If it is missing, Rett:ich falls back to manually saved
+recipe images or `/image_rettich.png`.
 
 Before the app can load recipe data, set up the database:
 

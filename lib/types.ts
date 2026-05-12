@@ -9,6 +9,8 @@ export type Ingredient = {
 
 export type Step = {
   text: string
+  /** Zutaten inklusive Mengen, die genau in diesem Schritt gebraucht werden */
+  ingredients?: Ingredient[]
   durationSeconds?: number
   checkText?: string
   isStopPoint?: boolean

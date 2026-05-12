@@ -2,10 +2,17 @@
 
 import { useEffect, useState, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat, Minus, Plus } from 'lucide-react'
-import { getRecipe, saveFeedback, updateSuggestionStatus, getTodaySuggestion } from '@/lib/store'
-import type { Recipe, Step } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat, Minus, Plus, Clock, Flame } from 'lucide-react'
+import {
+  getRecipe,
+  saveFeedback,
+  setTodayRecipeForShoppingList,
+  updateSuggestionStatus,
+  getTodaySuggestion,
+} from '@/lib/store'
+import type { Fix, Ingredient, Recipe, Step, Substitution } from '@/lib/types'
+import { cn, formatIngredientLine } from '@/lib/utils'
+import RecipeImage from '@/components/RecipeImage'
 
 function truncateTimerLabel(text: string, maxLen = 140): string {
   const t = text.trim()
@@ -19,6 +26,100 @@ type CookTimerState = {
   initialSeconds: number
   /** Schritt-Text des Rezepts, für den diese Zeit gedacht ist */
   label: string
+}
+
+const INGREDIENT_STOP_WORDS = new Set([
+  'oder',
+  'und',
+  'mit',
+  'ohne',
+  'nach',
+  'geschmack',
+  'optional',
+  'frisch',
+  'frische',
+  'frischer',
+  'gerieben',
+  'geriebener',
+  'gehackt',
+  'gewuerfelt',
+  'dose',
+  'packung',
+  'stueck',
+])
+
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function getIngredientTokens(name: string): string[] {
+  return normalizeSearchText(name)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !INGREDIENT_STOP_WORDS.has(token))
+}
+
+function getTextTokens(value: string): string[] {
+  return normalizeSearchText(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !INGREDIENT_STOP_WORDS.has(token))
+}
+
+function getStepIngredients(recipe: Recipe, step: Step): Ingredient[] {
+  if (step.ingredients?.length) return step.ingredients
+
+  const normalizedStep = normalizeSearchText(step.text)
+  if (!normalizedStep) return []
+
+  return recipe.ingredients.filter((ingredient) =>
+    getIngredientTokens(ingredient.name).some((token) => normalizedStep.includes(token)),
+  )
+}
+
+function ingredientNamesOverlap(a: string, b: string): boolean {
+  const aTokens = getIngredientTokens(a)
+  const bTokens = getIngredientTokens(b)
+  return aTokens.some((aToken) =>
+    bTokens.some((bToken) => aToken.includes(bToken) || bToken.includes(aToken)),
+  )
+}
+
+function getCurrentStepContext(step: Step, stepIngredients: Ingredient[]): string {
+  return normalizeSearchText(
+    [step.text, step.checkText, ...stepIngredients.map((ingredient) => ingredient.name)].join(' '),
+  )
+}
+
+function getStepSubstitutions(
+  substitutions: Substitution[],
+  step: Step,
+  stepIngredients: Ingredient[],
+): Substitution[] {
+  const context = getCurrentStepContext(step, stepIngredients)
+
+  return substitutions.filter((substitution) => {
+    const substitutionTokens = getIngredientTokens(substitution.ingredient)
+    const ingredientHit = stepIngredients.some((ingredient) =>
+      ingredientNamesOverlap(substitution.ingredient, ingredient.name),
+    )
+    const contextHit = substitutionTokens.some((token) => context.includes(token))
+    return ingredientHit || contextHit
+  })
+}
+
+function getStepFixes(fixes: Fix[], step: Step, stepIngredients: Ingredient[]): Fix[] {
+  const context = getCurrentStepContext(step, stepIngredients)
+  if (!context) return []
+
+  return fixes.filter((fix) => {
+    const tokens = getTextTokens(`${fix.problem} ${fix.solution}`)
+    return tokens.some((token) => context.includes(token))
+  })
 }
 
 function getStepTimer(
@@ -198,13 +299,21 @@ function FeedbackDialog({
   )
 }
 
-export default function KochenPage({ params }: { params: Promise<{ id: string }> }) {
+export default function KochenPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ preview?: string }>
+}) {
   const { id } = use(params)
+  const { preview } = use(searchParams)
   const router = useRouter()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [done, setDone] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showOverview, setShowOverview] = useState(preview === '1')
   const [cookTimer, setCookTimer] = useState<CookTimerState | null>(null)
 
   useEffect(() => {
@@ -215,6 +324,7 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
         if (!cancelled && r) {
           setRecipe(r)
           setCookTimer(getStepTimer(r, 0, null))
+          void setTodayRecipeForShoppingList(r.id).catch((err) => console.error(err))
         }
       } catch (err) {
         console.error(err)
@@ -295,7 +405,77 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
 
   const totalSteps = recipe.steps.length
   const step: Step = recipe.steps[stepIndex]
+  const stepIngredients = getStepIngredients(recipe, step)
+  const stepSubstitutions = getStepSubstitutions(recipe.substitutions, step, stepIngredients)
+  const stepFixes = getStepFixes(recipe.fixes, step, stepIngredients)
   const progress = ((stepIndex + 1) / totalSteps) * 100
+
+  if (showOverview) {
+    return (
+      <div className="px-4 pt-6 pb-6 flex flex-col gap-4">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-sm font-medium text-orange-700 hover:text-orange-800 py-1"
+        >
+          <ArrowLeft size={18} />
+          Zurück
+        </button>
+
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+          <div className="p-6 flex flex-col gap-4">
+            <div>
+              <p className="text-xs text-stone-400 font-medium uppercase tracking-wide mb-1">
+                Rezeptübersicht
+              </p>
+              <h1 className="text-2xl font-bold text-stone-900 leading-tight">{recipe.title}</h1>
+              <p className="text-stone-500 mt-1 text-base leading-relaxed">{recipe.description}</p>
+            </div>
+
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-200/80">
+              <RecipeImage key={recipe.id} recipe={recipe} priority />
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2 text-stone-700">
+                <Clock size={18} className="text-orange-500" />
+                <span className="text-base font-medium">{recipe.timeMinutes} Min.</span>
+              </div>
+              <div className="flex items-center gap-2 text-stone-700">
+                <Flame size={18} className="text-orange-500" />
+                <span className="text-base font-medium">{recipe.ingredientCount} Zutaten</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">
+                Zutaten
+              </p>
+              <ul className="space-y-1.5">
+                {recipe.ingredients.map((ing, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-stone-700 leading-snug">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                    <span>{formatIngredientLine(ing)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="px-6 pb-6">
+            <button
+              type="button"
+              onClick={() => setShowOverview(false)}
+              className="flex items-center justify-center gap-2 w-full bg-orange-600 text-white font-semibold text-lg py-4 rounded-xl hover:bg-orange-700 active:scale-95 transition-all"
+            >
+              <ChefHat size={20} />
+              Mit Schritt 1 starten
+              <ArrowRight size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (done) {
     return (
@@ -369,6 +549,22 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
             <p className="text-xl leading-relaxed text-stone-800 font-medium pt-1">{step.text}</p>
           </div>
 
+          {!!stepIngredients.length && (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">
+                Zutaten für diesen Schritt
+              </p>
+              <ul className="space-y-1.5">
+                {stepIngredients.map((ing, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-stone-700 leading-snug">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                    <span>{formatIngredientLine(ing)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {cookTimer && (
             <TimerBar
               remaining={cookTimer.remaining}
@@ -388,15 +584,14 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
           )}
         </div>
 
-        {/* Substitutions for this step (if any match) */}
-        {recipe.substitutions.length > 0 && (
+        {stepSubstitutions.length > 0 && (
           <details className="bg-stone-50 border border-stone-200 rounded-xl">
             <summary className="px-4 py-3 text-sm font-medium text-stone-600 cursor-pointer list-none flex items-center gap-2">
               <ChefHat size={16} className="text-stone-400" />
               Zutat ersetzen?
             </summary>
             <div className="px-4 pb-4 space-y-2">
-              {recipe.substitutions.map((s, i) => (
+              {stepSubstitutions.map((s, i) => (
                 <p key={i} className="text-sm text-stone-600">
                   <span className="font-medium">{s.ingredient}</span> → {s.substitute}
                 </p>
@@ -405,14 +600,13 @@ export default function KochenPage({ params }: { params: Promise<{ id: string }>
           </details>
         )}
 
-        {/* Fixes */}
-        {recipe.fixes.length > 0 && (
+        {stepFixes.length > 0 && (
           <details className="bg-stone-50 border border-stone-200 rounded-xl">
             <summary className="px-4 py-3 text-sm font-medium text-stone-600 cursor-pointer list-none flex items-center gap-2">
               🆘 Etwas läuft schief?
             </summary>
             <div className="px-4 pb-4 space-y-2">
-              {recipe.fixes.map((f, i) => (
+              {stepFixes.map((f, i) => (
                 <div key={i}>
                   <p className="text-sm font-medium text-stone-700">{f.problem}</p>
                   <p className="text-sm text-stone-500">{f.solution}</p>

@@ -136,6 +136,11 @@ type SuggestionRow = {
   rejection_reason: string | null
 }
 
+type ShoppingListCheckRow = {
+  list_key: string
+  checked_item_keys: string[] | null
+}
+
 function mapSuggestion(row: SuggestionRow): DailySuggestion {
   return {
     id: row.id,
@@ -493,6 +498,29 @@ function pickRecipeForSpecificCraving(
   return pool[Math.floor(Math.random() * pool.length)]!
 }
 
+function rankRecipesForSpecificCraving(
+  recipes: Recipe[],
+  signals: RecommendationSignals,
+  profile: Profile,
+  cravingChoiceIds: string[],
+): CravingRecipeMatch[] {
+  const byId = new Map<string, CravingRecipeMatch>()
+  for (const relax of RELAXATION_STEPS) {
+    const matched = recipes.filter((r) => recipeMatchesRelax(r, new Set(), relax, signals, profile))
+    for (const recipe of matched) {
+      const score = scoreRecipeCravingMatch(recipe, cravingChoiceIds)
+      if (score > 0 && !byId.has(recipe.id)) {
+        byId.set(recipe.id, { ...recipe, cravingScore: score })
+      }
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => {
+    if (b.cravingScore !== a.cravingScore) return b.cravingScore - a.cravingScore
+    return a.title.localeCompare(b.title, 'de')
+  })
+}
+
 // =============================================================================
 // Daily suggestions
 // =============================================================================
@@ -660,6 +688,21 @@ export async function createTodaySuggestionForCraving(
   return { ...mapSuggestion(data as SuggestionRow), recipe }
 }
 
+export async function getRecipesForCraving(
+  cravingChoiceIds: string[],
+): Promise<CravingRecipeMatch[]> {
+  const ids = cravingChoiceIds.filter(Boolean)
+  if (!ids.length) return []
+
+  const [recipes, profile, signals] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+  ])
+
+  return rankRecipesForSpecificCraving(recipes, signals, profile, ids)
+}
+
 export async function updateSuggestionStatus(
   id: string,
   status: DailySuggestion['status'],
@@ -670,6 +713,68 @@ export async function updateSuggestionStatus(
     .from('daily_suggestions')
     .update({ status, rejection_reason: rejectionReason ?? null })
     .eq('id', id)
+  if (error) throw error
+}
+
+export async function setTodayRecipeForShoppingList(recipeId: string): Promise<DailySuggestion> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const today = todayStr()
+
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .upsert(
+      {
+        user_id: userId,
+        date: today,
+        recipe_id: recipeId,
+        status: 'cooking',
+        rejection_reason: null,
+      },
+      { onConflict: 'user_id,date' },
+    )
+    .select('*')
+    .single()
+
+  if (error) throw error
+
+  const recipe = await getRecipe(recipeId)
+  return {
+    ...mapSuggestion(data as SuggestionRow),
+    ...(recipe ? { recipe } : {}),
+  }
+}
+
+export async function getShoppingListCheckedItems(listKey: string): Promise<string[]> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('shopping_list_checks')
+    .select('list_key, checked_item_keys')
+    .eq('user_id', userId)
+    .eq('list_key', listKey)
+    .maybeSingle()
+  if (error) throw error
+  return ((data as ShoppingListCheckRow | null)?.checked_item_keys ?? []).filter(Boolean)
+}
+
+export async function saveShoppingListCheckedItems(
+  listKey: string,
+  checkedItemKeys: string[],
+): Promise<void> {
+  const userId = await requireUserId()
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('shopping_list_checks')
+    .upsert(
+      {
+        user_id: userId,
+        list_key: listKey,
+        checked_item_keys: checkedItemKeys,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,list_key' },
+    )
   if (error) throw error
 }
 
@@ -804,6 +909,10 @@ export type ApplySomethingElseOptions = {
 export type RecipeCollectionItem = Recipe & {
   cookedBefore: boolean
   rejectedBefore: boolean
+}
+
+export type CravingRecipeMatch = Recipe & {
+  cravingScore: number
 }
 
 export async function applySomethingElse(

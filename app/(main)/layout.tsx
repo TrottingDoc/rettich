@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { BookOpen, Home, Heart, ShoppingCart } from 'lucide-react'
+import { BookOpen, Heart, ShoppingCart } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import RettMichNavLink from '@/components/RettMichNavLink'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,13 +32,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <main className="flex flex-1 flex-col min-h-0 overflow-y-auto pb-20">{children}</main>
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-[#faf7f0] border-t border-stone-200/70 flex">
-        <Link
-          href="/"
-          className="flex-1 flex flex-col items-center gap-1 py-3 text-stone-500 hover:text-orange-600 transition-colors min-w-0"
-        >
-          <Home size={22} className="shrink-0" />
-          <span className="text-[11px] sm:text-xs text-center leading-tight">Heute</span>
-        </Link>
+        <RettMichNavLink />
         <Link
           href="/verlauf"
           className="flex-1 flex flex-col items-center gap-1 py-3 text-stone-500 hover:text-orange-600 transition-colors min-w-0"

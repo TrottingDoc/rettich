@@ -194,6 +194,27 @@ create policy "Eigene Vorschlaege"
   with check (auth.uid() = user_id);
 
 -- =============================================================================
+-- Tabelle: shopping_list_checks (abgehakte Zutaten pro User & Liste)
+-- =============================================================================
+create table if not exists shopping_list_checks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  list_key text not null,
+  checked_item_keys text[] default '{}',
+  updated_at timestamptz default now(),
+  unique (user_id, list_key)
+);
+
+alter table shopping_list_checks enable row level security;
+
+drop policy if exists "Eigene Einkaufslisten-Haken" on shopping_list_checks;
+create policy "Eigene Einkaufslisten-Haken"
+  on shopping_list_checks for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- =============================================================================
 -- Tabelle: feedback (pro User)
 -- =============================================================================
 create table if not exists feedback (
