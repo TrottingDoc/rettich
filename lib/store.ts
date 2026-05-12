@@ -471,12 +471,12 @@ export function pickRecipesMatchingSignals(
 
 function pickRecipeForSpecificCraving(
   recipes: Recipe[],
-  excludeRecipeId: string,
+  excludeRecipeId: string | null,
   signals: RecommendationSignals,
   profile: Profile,
   cravingChoiceIds: string[],
 ): Recipe | null {
-  const exclude = new Set([excludeRecipeId])
+  const exclude = new Set(excludeRecipeId ? [excludeRecipeId] : [])
   for (const relax of RELAXATION_STEPS) {
     const matched = recipes.filter((r) => recipeMatchesRelax(r, exclude, relax, signals, profile))
     const scored = matched
@@ -604,6 +604,60 @@ export async function getOrCreateSuggestionForDate(
 
 export async function createTodaySuggestion(): Promise<DailySuggestion | null> {
   return getOrCreateSuggestionForDate(todayStr())
+}
+
+export async function createTodaySuggestionForCraving(
+  cravingChoiceIds: string[],
+): Promise<DailySuggestion | null> {
+  const ids = cravingChoiceIds.filter(Boolean)
+  if (!ids.length) return null
+
+  const userId = await requireUserId()
+  const [recipes, profile, signals, suggestions] = await Promise.all([
+    getRecipes(),
+    getProfile(),
+    getRecommendationSignals(),
+    fetchSuggestions(userId),
+  ])
+  const today = todayStr()
+  const todayRow = suggestions.find((s) => s.date === today) ?? null
+  const recipe = pickRecipeForSpecificCraving(
+    recipes,
+    todayRow?.recipeId || null,
+    signals,
+    profile,
+    ids,
+  )
+  if (!recipe) return null
+
+  const supabase = createClient()
+  if (todayRow) {
+    const { data, error } = await supabase
+      .from('daily_suggestions')
+      .update({
+        recipe_id: recipe.id,
+        status: 'pending',
+        rejection_reason: null,
+      })
+      .eq('id', todayRow.id)
+      .select('*')
+      .single()
+    if (error) throw error
+    return { ...mapSuggestion(data as SuggestionRow), recipe }
+  }
+
+  const { data, error } = await supabase
+    .from('daily_suggestions')
+    .insert({
+      user_id: userId,
+      date: today,
+      recipe_id: recipe.id,
+      status: 'pending',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return { ...mapSuggestion(data as SuggestionRow), recipe }
 }
 
 export async function updateSuggestionStatus(
@@ -747,6 +801,11 @@ export type ApplySomethingElseOptions = {
   cravingChoiceIds?: string[]
 }
 
+export type RecipeCollectionItem = Recipe & {
+  cookedBefore: boolean
+  rejectedBefore: boolean
+}
+
 export async function applySomethingElse(
   suggestion: DailySuggestion,
   recipe: Recipe,
@@ -841,6 +900,42 @@ export async function saveFeedback(
     too_long: feedback.tooLong,
   })
   if (error) throw error
+}
+
+export async function getRecipeCollection(): Promise<RecipeCollectionItem[]> {
+  const userId = await requireUserId()
+  const [recipes, suggestions, feedbacks, signals] = await Promise.all([
+    getRecipes(),
+    fetchSuggestions(userId),
+    getFeedback(),
+    getRecommendationSignals(),
+  ])
+
+  const cookedIds = new Set<string>()
+  for (const suggestion of suggestions) {
+    if (
+      suggestion.recipeId
+      && (suggestion.status === 'completed' || suggestion.status === 'accepted')
+    ) {
+      cookedIds.add(suggestion.recipeId)
+    }
+  }
+  for (const feedback of feedbacks) {
+    if (feedback.recipeId) cookedIds.add(feedback.recipeId)
+  }
+
+  const rejectedIds = new Set(signals.dislikedRecipeIds)
+  for (const feedback of feedbacks) {
+    if (!feedback.wouldCookAgain && feedback.recipeId) rejectedIds.add(feedback.recipeId)
+  }
+
+  return recipes
+    .filter((recipe) => recipe.isActive)
+    .map((recipe) => ({
+      ...recipe,
+      cookedBefore: cookedIds.has(recipe.id),
+      rejectedBefore: rejectedIds.has(recipe.id),
+    }))
 }
 
 export async function getPastSuggestions(): Promise<DailySuggestion[]> {

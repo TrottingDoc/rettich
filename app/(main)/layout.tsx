@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Home, Clock, Heart, ShoppingCart } from 'lucide-react'
+import { BookOpen, Home, Heart, ShoppingCart } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -42,8 +42,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           href="/verlauf"
           className="flex-1 flex flex-col items-center gap-1 py-3 text-stone-500 hover:text-orange-600 transition-colors min-w-0"
         >
-          <Clock size={22} className="shrink-0" />
-          <span className="text-[11px] sm:text-xs text-center leading-tight">Bisher</span>
+          <BookOpen size={22} className="shrink-0" />
+          <span className="text-[11px] sm:text-xs text-center leading-tight">Sammlung</span>
         </Link>
         <Link
           href="/profil"
