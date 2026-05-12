@@ -271,7 +271,7 @@ export async function saveRecipe(recipe: Recipe): Promise<void> {
 
 export async function deleteRecipe(id: string): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase.from('recipes').delete().eq('id', id)
+  const { error } = await supabase.rpc('admin_delete_recipe', { recipe_id: id })
   if (error) throw error
 }
 

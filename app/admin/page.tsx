@@ -15,6 +15,7 @@ const CHOPPING_DE: Record<string, string> = {
 export default function AdminPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -23,7 +24,9 @@ export default function AdminPage() {
         const r = await getRecipes()
         if (!cancelled) setRecipes(r)
       } catch (err) {
-        console.error(err)
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Rezepte konnten nicht geladen werden.')
+        }
       }
     })()
     return () => {
@@ -33,11 +36,12 @@ export default function AdminPage() {
 
   async function handleDelete(id: string) {
     try {
+      setError(null)
       await deleteRecipe(id)
       setRecipes(await getRecipes())
       setConfirmDelete(null)
     } catch (err) {
-      console.error(err)
+      setError(err instanceof Error ? err.message : 'Rezept konnte nicht gelöscht werden.')
     }
   }
 
@@ -49,6 +53,12 @@ export default function AdminPage() {
           <p className="text-stone-500 mt-1">{recipes.length} Rezepte in der Datenbank</p>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
         <table className="w-full text-sm">

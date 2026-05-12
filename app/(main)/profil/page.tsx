@@ -6,7 +6,6 @@ import { getProfile, saveProfile } from '@/lib/store'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import LogoutButton from '@/components/LogoutButton'
 import { ALLERGEN_OPTIONS, NOTIFICATION_HOURS } from '@/lib/profile-options'
 
 const EQUIPMENT_OPTIONS = ['Herd', 'Backofen', 'Mikrowelle', 'Toaster', 'Wasserkocher', 'Mixer']
@@ -105,7 +104,6 @@ export default function ProfilPage() {
             )}
           </div>
         </div>
-        <LogoutButton className="shrink-0 mt-1" />
       </div>
 
       {/* Zeit */}

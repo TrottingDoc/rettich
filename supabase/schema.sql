@@ -11,9 +11,17 @@ create or replace function is_admin()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public, auth
 as $$
   select coalesce(
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin',
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    or exists (
+      select 1
+      from auth.users
+      where id = auth.uid()
+        and raw_app_meta_data ->> 'role' = 'admin'
+    ),
     false
   );
 $$;
@@ -73,6 +81,30 @@ create policy "Rezepte loeschen (admin)"
   on recipes for delete
   to authenticated
   using (is_admin());
+
+-- Admin-Delete als RPC, damit alte Seed-Rezepte und referenzierte Rezepte
+-- zuverlaessig ueber den Admin-Bereich entfernt werden koennen.
+create or replace function admin_delete_recipe(recipe_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can delete recipes';
+  end if;
+
+  update public.recommendation_signals
+    set disliked_recipe_ids = array_remove(disliked_recipe_ids, recipe_id)
+    where recipe_id = any(disliked_recipe_ids);
+
+  delete from public.recipes
+    where id = recipe_id;
+end;
+$$;
+
+grant execute on function admin_delete_recipe(uuid) to authenticated;
 
 -- =============================================================================
 -- Tabelle: profile (eine Zeile pro User)

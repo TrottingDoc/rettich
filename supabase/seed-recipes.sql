@@ -970,4 +970,59 @@ insert into recipes (
     {"problem":"Sauce ist zu salzig","solution":"Etwas Wasser, Reis oder ungewürzten Blumenkohl dazugeben."}
   ]'::jsonb,
   true
+),
+(
+  'Kartoffelrolle mit Hackfleisch und Spinat',
+  'Eine herzhafte Rolle aus dünnen Kartoffelscheiben mit Parmesan, gefüllt mit Spinat-Ricotta und würzigem Hackfleisch.',
+  '/image_rettich.png',
+  105, 8, 'lots',
+  true, true, true, 14, 3,
+  false,
+  '{auflauf,party}',
+  '[
+    {"name":"Kartoffeln","amount":"6","unit":"Stück"},
+    {"name":"Parmesan, gerieben","amount":"220","unit":"g"},
+    {"name":"Salz","amount":"3","unit":"TL"},
+    {"name":"Olivenöl","amount":"4","unit":"EL"},
+    {"name":"Süße Zwiebel","amount":"1","unit":"Stück"},
+    {"name":"Rinderhackfleisch","amount":"450","unit":"g"},
+    {"name":"Tomatenwürfel aus der Dose, abgetropft","amount":"410","unit":"g"},
+    {"name":"Frische Petersilie","amount":"4","unit":"EL"},
+    {"name":"Paprikapulver","amount":"1","unit":"TL"},
+    {"name":"Pfeffer","amount":"1/2","unit":"TL"},
+    {"name":"Spinat","amount":"240","unit":"g"},
+    {"name":"Knoblauchzehen","amount":"2","unit":"Stück"},
+    {"name":"Ricotta","amount":"250","unit":"g"},
+    {"name":"Mozzarella, gerieben","amount":"100","unit":"g"}
+  ]'::jsonb,
+  '[
+    {"text":"Backofen auf 180 °C Ober-/Unterhitze vorheizen. Ein Backblech mit Backpapier auslegen."},
+    {"text":"Kartoffeln schälen und mit Messer oder Hobel in sehr dünne Scheiben schneiden, etwa 3 mm dick.","checkText":"Je gleichmäßiger die Scheiben sind, desto leichter lässt sich die Rolle später formen."},
+    {"text":"Die Hälfte des Parmesans gleichmäßig auf dem Backpapier verteilen."},
+    {"text":"Kartoffelscheiben überlappend auf den Parmesan legen, sodass ein zusammenhängendes Rechteck entsteht."},
+    {"text":"Restlichen Parmesan über die Kartoffeln streuen und mit 1 TL Salz würzen."},
+    {"text":"Kartoffelplatte etwa 30 Minuten backen, bis sie goldbraun, biegsam und an den Rändern leicht knusprig ist."},
+    {"text":"Währenddessen 2 EL Olivenöl in einer Pfanne erhitzen. Zwiebel würfeln und bei mittlerer Hitze langsam weich und leicht karamellisiert braten."},
+    {"text":"Hackfleisch zugeben und krümelig braten. Tomaten, 3 EL Petersilie, Paprikapulver, 1 TL Salz und Pfeffer einrühren. Weiterbraten, bis das Hack gar ist, dann vom Herd nehmen."},
+    {"text":"In einer zweiten Pfanne 2 EL Olivenöl erhitzen. Spinat zusammenfallen lassen, dann Knoblauch und 1 TL Salz einrühren. Vom Herd nehmen."},
+    {"text":"Spinatmischung mit Ricotta verrühren."},
+    {"text":"Spinat-Ricotta gleichmäßig auf der gebackenen Kartoffelplatte verteilen."},
+    {"text":"Hackfleischmischung darauf verteilen und mit Mozzarella bestreuen."},
+    {"text":"Die Kartoffelplatte mithilfe des Backpapiers vorsichtig aufrollen. Darauf achten, dass die Füllung nicht an den Enden herausgedrückt wird."},
+    {"text":"Rolle wieder auf das Backpapier setzen und weitere 15 Minuten backen, bis sie heiß ist und der Käse geschmolzen ist."},
+    {"text":"Mit restlicher Petersilie bestreuen, in Scheiben schneiden und sofort servieren."}
+  ]'::jsonb,
+  '[
+    {"ingredient":"Rinderhackfleisch","substitute":"Gemischtes Hack, vegetarisches Hack oder fein gewürfelte Pilze"},
+    {"ingredient":"Ricotta","substitute":"Frischkäse oder körniger Frischkäse"},
+    {"ingredient":"Mozzarella","substitute":"Gouda oder Emmentaler"},
+    {"ingredient":"Spinat","substitute":"Mangold oder TK-Spinat, gut ausgedrückt"}
+  ]'::jsonb,
+  '[
+    {"problem":"Kartoffelplatte reißt beim Rollen","solution":"Kartoffeln stärker überlappen lassen und die Platte vor dem Rollen 3–5 Minuten abkühlen lassen."},
+    {"problem":"Füllung ist zu feucht","solution":"Tomaten gut abtropfen lassen und Spinat ausdrücken, bevor Ricotta dazukommt."},
+    {"problem":"Rolle lässt sich schwer schneiden","solution":"Nach dem Backen 5 Minuten ruhen lassen und ein scharfes Messer verwenden."},
+    {"problem":"Kartoffeln sind noch fest","solution":"Die Kartoffelplatte vor dem Füllen ein paar Minuten länger backen."}
+  ]'::jsonb,
+  true
 );
