@@ -9,7 +9,7 @@ import {
 import type { Ingredient } from '@/lib/types'
 import { cn, formatIngredientLine } from '@/lib/utils'
 
-function itemKey(ingredient: Ingredient, index: number): string {
+export function getIngredientItemKey(ingredient: Ingredient, index: number): string {
   return `${index}:${formatIngredientLine(ingredient)}`
 }
 
@@ -18,14 +18,16 @@ export default function CheckableIngredientList({
   ingredients,
   className,
   itemClassName,
+  onCheckedChange,
 }: {
   listKey: string
   ingredients: Ingredient[]
   className?: string
   itemClassName?: string
+  onCheckedChange?: (checkedKeys: string[]) => void
 }) {
   const [checked, setChecked] = useState<Set<string>>(() => new Set())
-  const keys = useMemo(() => ingredients.map(itemKey), [ingredients])
+  const keys = useMemo(() => ingredients.map(getIngredientItemKey), [ingredients])
 
   useEffect(() => {
     let cancelled = false
@@ -33,7 +35,9 @@ export default function CheckableIngredientList({
       try {
         const saved = await getShoppingListCheckedItems(listKey)
         if (!cancelled) {
-          setChecked(new Set(saved.filter((key) => keys.includes(key))))
+          const validSaved = saved.filter((key) => keys.includes(key))
+          setChecked(new Set(validSaved))
+          onCheckedChange?.(validSaved)
         }
       } catch (err) {
         console.error(err)
@@ -42,7 +46,7 @@ export default function CheckableIngredientList({
     return () => {
       cancelled = true
     }
-  }, [keys, listKey])
+  }, [keys, listKey, onCheckedChange])
 
   function toggle(key: string) {
     setChecked((current) => {
@@ -53,6 +57,7 @@ export default function CheckableIngredientList({
         next.add(key)
       }
       void saveShoppingListCheckedItems(listKey, [...next]).catch(console.error)
+      onCheckedChange?.([...next])
       return next
     })
   }
@@ -60,7 +65,7 @@ export default function CheckableIngredientList({
   return (
     <ul className={cn('flex flex-col gap-2', className)}>
       {ingredients.map((ing, i) => {
-        const key = itemKey(ing, i)
+        const key = getIngredientItemKey(ing, i)
         const isChecked = checked.has(key)
         return (
           <li key={key}>

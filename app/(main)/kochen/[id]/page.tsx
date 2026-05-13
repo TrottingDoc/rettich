@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, use, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Timer, CheckCircle, PauseCircle, ArrowRight, ChefHat, Minus, Plus, Clock, Flame } from 'lucide-react'
 import {
@@ -458,6 +459,12 @@ export default function KochenPage({
                   </li>
                 ))}
               </ul>
+              <Link
+                href="/einkaufen"
+                className="mt-3 inline-flex text-sm font-medium text-orange-700 hover:text-orange-800"
+              >
+                Zur Einkaufsliste
+              </Link>
             </div>
           </div>
 

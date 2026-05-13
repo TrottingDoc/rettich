@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { BookOpen, Clock, ChefHat, ThumbsDown, ThumbsUp } from 'lucide-react'
-import { getRecipeCollection, type RecipeCollectionItem } from '@/lib/store'
+import { useRouter } from 'next/navigation'
+import { BookOpen, Clock, ChefHat, ShoppingCart, ThumbsDown, ThumbsUp } from 'lucide-react'
+import {
+  getRecipeCollection,
+  setTodayRecipeForShoppingList,
+  type RecipeCollectionItem,
+} from '@/lib/store'
 
 export default function VerlaufPage() {
+  const router = useRouter()
   const [collection, setCollection] = useState<RecipeCollectionItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -26,6 +32,15 @@ export default function VerlaufPage() {
     }
   }, [])
 
+  async function buyIngredients(recipeId: string) {
+    try {
+      await setTodayRecipeForShoppingList(recipeId)
+      router.push('/einkaufen')
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center min-h-0 py-16">
@@ -37,7 +52,10 @@ export default function VerlaufPage() {
   return (
     <div className="px-4 pt-8 pb-6 flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-stone-900">Rezeptsammlung</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-stone-900">
+          <BookOpen size={26} className="text-orange-600 shrink-0" />
+          Rezeptsammlung
+        </h1>
         <p className="text-stone-500 mt-1">
           Alle aktiven Rezepte mit Markern für gekocht und nicht wieder kochen.
         </p>
@@ -84,13 +102,23 @@ export default function VerlaufPage() {
                 )}
               </div>
 
-              <Link
-                href={`/kochen/${recipe.id}?preview=1`}
-                className="flex items-center gap-1 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
-              >
-                <ChefHat size={14} />
-                Rezept kochen
-              </Link>
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <Link
+                  href={`/kochen/${recipe.id}?preview=1`}
+                  className="flex items-center gap-1 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
+                >
+                  <ChefHat size={14} />
+                  Rezept kochen
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void buyIngredients(recipe.id)}
+                  className="flex items-center gap-1 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
+                >
+                  <ShoppingCart size={14} />
+                  Zutaten kaufen
+                </button>
+              </div>
             </div>
           ))}
         </div>

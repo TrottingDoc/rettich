@@ -9,18 +9,20 @@ import {
   Clock,
   ClipboardList,
   Flame,
+  LifeBuoy,
   RefreshCw,
   Sparkles,
   X,
 } from 'lucide-react'
 import { cn, formatIngredientLine } from '@/lib/utils'
-import CheckableIngredientList from '@/components/CheckableIngredientList'
+import CheckableIngredientList, { getIngredientItemKey } from '@/components/CheckableIngredientList'
 import RecipeImage from '@/components/RecipeImage'
 import { RESET_HOME_EVENT } from '@/components/RettMichNavLink'
 import {
   applySomethingElse,
   createTodaySuggestion,
   getRecipesForCraving,
+  todayStr,
   type ApplySomethingElseOptions,
   type CravingRecipeMatch,
 } from '@/lib/store'
@@ -83,6 +85,7 @@ export default function TodayPage() {
   const [alternativeSurveyHint, setAlternativeSurveyHint] = useState<string | null>(null)
   const [showIngredientsModal, setShowIngredientsModal] = useState(false)
   const [shoppingListFeedback, setShoppingListFeedback] = useState<'idle' | 'saved'>('idle')
+  const [checkedIngredientKeys, setCheckedIngredientKeys] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   const recipe = suggestion?.recipe
@@ -122,8 +125,13 @@ export default function TodayPage() {
 
   async function pinShoppingListToPreferences() {
     if (!recipe) return
-    const lines = recipe.ingredients.map(formatIngredientLine)
-    const text = `${recipe.title}\n\n${lines.map((l) => `• ${l}`).join('\n')}`
+    const checked = new Set(checkedIngredientKeys)
+    const lines = recipe.ingredients
+      .filter((ingredient, index) => !checked.has(getIngredientItemKey(ingredient, index)))
+      .map(formatIngredientLine)
+    const text = `${recipe.title}\n\n${
+      lines.length ? lines.map((l) => `• ${l}`).join('\n') : 'Nichts einzukaufen.'
+    }`
     try {
       await navigator.clipboard.writeText(text)
     } catch {
@@ -193,7 +201,10 @@ export default function TodayPage() {
         <p className="text-sm text-stone-500 font-medium uppercase tracking-wide">
           {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        <h1 className="text-2xl font-bold text-stone-900 mt-1">Rett:mich</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-stone-900 mt-1">
+          <LifeBuoy size={26} className="text-orange-600 shrink-0" />
+          Rett:mich
+        </h1>
       </div>
 
       <div className="px-4 flex flex-col gap-4 flex-1 pb-6">
@@ -258,7 +269,7 @@ export default function TodayPage() {
             <div>
               <h2 className="text-xl font-bold text-stone-900">Worauf hast du Lust?</h2>
               <p className="text-stone-500 text-sm mt-1">
-                Das sind dieselben Auswahloptionen wie bisher bei „Habe Lust auf was Bestimmtes“.
+                Wähle eine oder mehrere Zutaten oder Kategorien aus, die dir heute schmecken würden.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -392,7 +403,10 @@ export default function TodayPage() {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => setShowIngredientsModal(true)}
+                      onClick={() => {
+                        setCheckedIngredientKeys([])
+                        setShowIngredientsModal(true)
+                      }}
                       className="mt-3 text-sm font-medium text-orange-700 hover:text-orange-800 text-center py-1 underline underline-offset-2 decoration-orange-700/50 hover:decoration-orange-800"
                     >
                       Zeig mir die benötigten Lebensmittel
@@ -450,9 +464,10 @@ export default function TodayPage() {
               </button>
             </div>
             <CheckableIngredientList
-              listKey={`recipe:${recipe.id}:ingredients`}
+              listKey={`shopping:${todayStr()}:${recipe.id}`}
               ingredients={recipe.ingredients}
               className="overflow-y-auto flex-1 min-h-0 space-y-2.5 border border-stone-200 rounded-xl px-4 py-3 bg-stone-50/80"
+              onCheckedChange={setCheckedIngredientKeys}
             />
             {shoppingListFeedback === 'saved' && (
               <p className="text-sm text-green-700 font-medium">
@@ -465,14 +480,19 @@ export default function TodayPage() {
                 onClick={() => void pinShoppingListToPreferences()}
                 disabled={shoppingListFeedback === 'saved'}
                 className={cn(
-                  'flex items-center justify-center gap-2 w-full font-semibold text-base py-3.5 rounded-xl transition-all',
+                  'flex items-center justify-center gap-3 w-full px-4 py-3.5 rounded-xl transition-all text-left',
                   shoppingListFeedback === 'saved'
                     ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
                     : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-[0.98]',
                 )}
               >
-                <ClipboardList size={20} />
-                Auf meine Einkaufsliste setzen
+                <ClipboardList size={17} className="shrink-0" />
+                <span className="flex flex-col leading-snug">
+                  <span className="text-base font-semibold">Diese Liste kopieren</span>
+                  <span className="text-xs font-medium text-white/85">
+                    Wähle vorhandene Zutaten vorher in der Liste ab.
+                  </span>
+                </span>
               </button>
               <button
                 type="button"
