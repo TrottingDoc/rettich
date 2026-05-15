@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ClipboardList, ShoppingCart, Volume2, VolumeX } from 'lucide-react'
 import {
@@ -80,6 +80,8 @@ export default function EinkaufenPage() {
   const [checkedIngredientKeys, setCheckedIngredientKeys] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  /** Same as `isSpeaking`, but updated synchronously so „Stop“ works before the next paint (mobile). */
+  const isSpeakingRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -102,8 +104,10 @@ export default function EinkaufenPage() {
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null
         window.speechSynthesis.cancel()
       }
+      isSpeakingRef.current = false
     }
   }, [])
 
@@ -138,8 +142,13 @@ export default function EinkaufenPage() {
 
   function readForAlexa() {
     if (!todayRecipe || typeof window === 'undefined' || !('speechSynthesis' in window)) return
-    if (isSpeaking) {
-      window.speechSynthesis.cancel()
+
+    const synth = window.speechSynthesis
+
+    if (isSpeakingRef.current) {
+      synth.onvoiceschanged = null
+      synth.cancel()
+      isSpeakingRef.current = false
       setIsSpeaking(false)
       return
     }
@@ -147,29 +156,48 @@ export default function EinkaufenPage() {
     const ingredientNames = getUncheckedIngredientLines()
       .map(getAlexaIngredientName)
       .filter(Boolean)
-    const text = ingredientNames.length
-      ? `Alexa, setz folgendes auf die Einkaufsliste: ${ingredientNames.join(', ')}.`
-      : 'Es ist nichts einzukaufen.'
+    const phrases =
+      ingredientNames.length > 0
+        ? ingredientNames.map((name) => `Alexa, setz ${name} auf die Einkaufsliste.`)
+        : ['Es ist nichts einzukaufen.']
 
-    function speak() {
-      window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(text)
-      const germanVoice = getGermanVoice()
-      utterance.lang = germanVoice?.lang ?? 'de-DE'
-      if (germanVoice) utterance.voice = germanVoice
-      utterance.rate = 1.18
-      utterance.onend = () => setIsSpeaking(false)
-      utterance.onerror = () => setIsSpeaking(false)
+    function speakPhrases() {
+      // `voiceschanged` fires repeatedly on some browsers; leaving the handler set re-queued all phrases from the start.
+      synth.onvoiceschanged = null
+      synth.cancel()
+      isSpeakingRef.current = true
       setIsSpeaking(true)
-      window.speechSynthesis.speak(utterance)
+      const germanVoice = getGermanVoice()
+      const lastIndex = phrases.length - 1
+
+      phrases.forEach((phrase, index) => {
+        const utterance = new SpeechSynthesisUtterance(phrase)
+        utterance.lang = germanVoice?.lang ?? 'de-DE'
+        if (germanVoice) utterance.voice = germanVoice
+        utterance.rate = 1.32
+        utterance.onend = () => {
+          if (index === lastIndex) {
+            isSpeakingRef.current = false
+            setIsSpeaking(false)
+          }
+        }
+        utterance.onerror = () => {
+          isSpeakingRef.current = false
+          setIsSpeaking(false)
+        }
+        synth.speak(utterance)
+      })
     }
 
-    if (window.speechSynthesis.getVoices().length) {
-      speak()
+    if (synth.getVoices().length) {
+      speakPhrases()
       return
     }
 
-    window.speechSynthesis.onvoiceschanged = speak
+    synth.onvoiceschanged = () => {
+      synth.onvoiceschanged = null
+      speakPhrases()
+    }
   }
 
   return (
@@ -242,7 +270,7 @@ export default function EinkaufenPage() {
             <span className="text-xs font-medium text-stone-500">
               {isSpeaking
                 ? 'Bricht die aktuelle Ausgabe ab.'
-                : 'Liest nur nicht abgewählte Zutaten ohne Mengen vor.'}
+                : 'Pro Zutat ein eigener Alexa-Satz, ohne Mengenangaben.'}
             </span>
           </span>
         </button>

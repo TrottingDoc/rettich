@@ -195,12 +195,12 @@ insert into recipes (
 ),
 (
   'Pesto Rosso',
-  'Kräftiges rotes Pesto mit getrockneten Tomaten, gerösteten Kernen, Parmigiano und Frischkäse.',
+  'Kräftiges rotes Pesto für Pasta – mit getrockneten Tomaten, gerösteten Kernen, Parmigiano und Frischkäse.',
   '/image_rettich.png',
   15, 4, 'basic',
   false, false, false, 17, 0,
   true,
-  '{vegetarisch,kein-herd,schnell,sauce,tomate}',
+  '{vegetarisch,kein-herd,schnell,sauce,tomate,pasta}',
   '[
     {"name":"Getrocknete Tomaten, rehydriert","amount":"1","unit":"Tasse"},
     {"name":"Pinienkerne, geröstet","amount":"1","unit":"EL"},
