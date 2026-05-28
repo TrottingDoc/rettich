@@ -56,4 +56,4 @@ Durchgesetzt wird das per Postgres RLS – auch direkte API-Zugriffe können fre
 
 ## Auth
 
-Login läuft per **Magic Link** (E-Mail). Erste Anmeldung legt automatisch den User in `auth.users` an, ein Trigger erzeugt sofort die zugehörige `profile`-Zeile.
+Login läuft per **E-Mail und Passwort**. Nutzer legst du im Dashboard unter **Authentication → Users** an (oder per Sign-up, falls aktiviert). Erste Anmeldung legt automatisch den User in `auth.users` an, ein Trigger erzeugt sofort die zugehörige `profile`-Zeile.

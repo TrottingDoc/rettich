@@ -2,26 +2,10 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Mail, ArrowRight, Lock } from 'lucide-react'
-
-function getLoginErrorMessage(error: { code?: string; status?: number; message?: string }) {
-  const message = error.message?.toLowerCase() ?? ''
-
-  if (message.includes('invalid login credentials')) {
-    return 'E-Mail oder Passwort stimmt nicht.'
-  }
-
-  if (message.includes('email not confirmed')) {
-    return 'Dieses Konto ist noch nicht bestätigt.'
-  }
-
-  return 'Es ist ein Fehler aufgetreten. Bitte versuche es erneut.'
-}
+import { signInWithPassword } from './actions'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,25 +18,12 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
+    const result = await signInWithPassword(email, password)
 
-    if (error) {
+    if (result?.error) {
       setLoading(false)
-      setError(getLoginErrorMessage(error))
-      return
+      setError(result.error)
     }
-
-    const { data: profile } = await supabase
-      .from('profile')
-      .select('onboarding_completed')
-      .maybeSingle()
-
-    router.replace(profile?.onboarding_completed ? '/' : '/onboarding')
-    router.refresh()
   }
 
   return (

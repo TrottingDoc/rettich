@@ -7,7 +7,43 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute = pathname.startsWith('/admin')
 
   if (isAuthRoute) {
-    return NextResponse.next({ request })
+    if (!pathname.startsWith('/login')) {
+      return NextResponse.next({ request })
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.next({ request })
+    }
+
+    let loginResponse = NextResponse.next({ request })
+    const supabaseOnLogin = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          loginResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            loginResponse.cookies.set(name, value, options),
+          )
+        },
+      },
+    })
+
+    const {
+      data: { user: loggedInUser },
+    } = await supabaseOnLogin.auth.getUser()
+
+    if (loggedInUser) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+
+    return loginResponse
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
